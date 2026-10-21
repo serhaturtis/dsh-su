@@ -1,0 +1,8 @@
+# Cordis composition patch for dsh-rate-hours.
+#
+# One row mounts the package; its `dsh.client` declaration is what makes the
+# browser half appear. The plugin needs no configuration and contributes no
+# service, so there is nothing else to set.
+- insert:
+    - id: rate-hours
+      name: dsh-rate-hours

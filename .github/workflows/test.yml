@@ -1,0 +1,22 @@
+name: test
+
+# No dependencies and no Harness: every plugin's suite is plain `node`, so the
+# whole check is a checkout and one command. That is the point of keeping the
+# tests dependency-free.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Plugin suites
+        run: node scripts/test-all.mjs
+      - name: Profile sync script parses
+        run: node --check scripts/sync-profile.mjs && node --check scripts/bootstrap.mjs && node --check scripts/new-plugin.mjs

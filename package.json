@@ -1,0 +1,18 @@
+{
+  "name": "dsh-su",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "dsh --profile dev web",
+    "setup": "node scripts/bootstrap.mjs",
+    "sync": "node scripts/sync-profile.mjs",
+    "test": "node scripts/test-all.mjs",
+    "new": "node scripts/new-plugin.mjs"
+  },
+  "dsh": {
+    "harness": {
+      "package": "@deepseek-ai/dsh",
+      "version": "0.2.1-rc.2"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+lib/
+dist/
+build/
+*.tsbuildinfo
+
+# Local Harness state: profiles, credentials, throwaway homes. Never publish.
+.dsh-*/
+profiles/
+
+# Character packs. The format is public; the art people put in it is theirs.
+*.dshchar
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Logs and coverage
+*.log
+coverage/
+
+# Plugin tarballs from `pnpm pack`
+*.tgz
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Temporary
+tmp/
+*.tmp

@@ -1,0 +1,5 @@
+# Composition patch for dsh-status-widget: one row mounts the package.
+# The dsh.client declaration in package.json is what makes the browser half appear.
+- insert:
+    - id: status-widget
+      name: dsh-status-widget
