@@ -20,6 +20,8 @@ importers:
         specifier: ~4.0.5
         version: 4.0.5(@deepseek-ai/cordis-plugin-include@1.0.10)(@deepseek-ai/cordis-plugin-loader@1.0.6)
 
+  plugins/status-widget: {}
+
 packages:
 
   '@deepseek-ai/cordis-plugin-include@1.0.10':
