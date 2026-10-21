@@ -212,7 +212,7 @@ test('the bubble hangs outside her box and points at her', () => {
 test('the tooltip carries the schedule caveats', () => {
 	const tree = flatten(render(at('2026-10-05T02:00:00Z')))
 	assert.match(tree, /01:00-04:00 and 06:00-10:00 UTC/)
-	assert.match(tree, /Chinese public holiday/)
+	assert.match(tree, /Chinese public holidays are not tracked/)
 })
 
 console.log('\nbundle hygiene')
@@ -1070,9 +1070,9 @@ test('the character carries its state for the CSS animation', () => {
 
 console.log('\nschedule')
 
-test('holiday weekday is off-peak, the day after is peak', () => {
-	assert.equal(schedule.isPeak(at('2026-10-05T02:00:00Z')), false)
-	assert.equal(schedule.isPeak(at('2026-10-08T02:00:00Z')), true)
+test('a public holiday follows the weekday rule — the known limitation', () => {
+	assert.equal(schedule.isPeak(at('2026-10-05T02:00:00Z')), true, 'National Day is a Monday and is reported as peak')
+	assert.match(schedule.describe(at('2026-10-05T02:00:00Z')).title, /Chinese public holidays are not tracked/)
 })
 
 test('peak edges hold', () => {

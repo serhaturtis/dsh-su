@@ -37,7 +37,7 @@ Flags: `--dry-run` reports without changing anything, `--profile <name>` targets
 | Plugin | Shows up as | What it does |
 | --- | --- | --- |
 | [`status-widget`](plugins/status-widget/README.md) | bottom-right card | Account balance and rate class cached 60s, eight-state cat mascot, [character packs](plugins/status-widget/docs/character-packs.md) |
-| [`rate-hours`](plugins/rate-hours/README.md) | composer row | Peak/off-peak rate badge with a countdown, holiday-aware |
+| [`rate-hours`](plugins/rate-hours/README.md) | composer row | Peak/off-peak rate badge with a countdown; weekday schedule, public holidays not tracked |
 | [`hello`](plugins/hello/README.md) | boot log | Smoke test that a linked plugin loads at all |
 
 Add a row when you add a plugin. The table is the index; each plugin's README is the detail.

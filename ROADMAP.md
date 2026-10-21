@@ -2,19 +2,13 @@
 
 Where this repo is, what is worth doing next, and what is deliberately parked. Ordered by value, not by effort. Each item says why it matters and what it costs.
 
-**State:** 3 plugins (`hello`, `rate-hours`, `status-widget`), 9 test suites. `status-widget` is the live one; `hello` is the linked smoke test; `rate-hours` stays as the schedule reference and an optional composer variant.
+**State:** 3 plugins (`hello`, `rate-hours`, `status-widget`), 8 test suites. `status-widget` is the live one; `hello` is the linked smoke test; `rate-hours` stays as the schedule reference and an optional composer variant.
 
 ## Done in this pass
 
-Click dialogue · host-side preferences in `$DSH_HOME` · settings section · ETag on both routes · keyboard access (Shift+F10, Enter to speak) · source-of-truth markers on the schedule · `rate-hours` formally classified as a reference implementation.
+Click dialogue · host-side preferences in `$DSH_HOME` · settings section · ETag on both routes · keyboard access (Shift+F10, Enter to speak) · source-of-truth markers on the schedule · `rate-hours` formally classified as a reference implementation · annual holiday table removed rather than maintained.
 
 What is left is listed below with the reason it is still open.
-
-## Deadlines
-
-| When | What | Why it bites |
-| --- | --- | --- |
-| **Early Nov 2026** | Replace the provisional 2027 table | The State Council notice lands around then. A forecast table is in place and labelled as such, so the suite stays green; the spans still need replacing when the notice is published |
 
 ## Next
 
@@ -56,7 +50,6 @@ A Settings → Plugins panel for size, sound, and "show balance / show rate".
 
 ### Data correctness
 
-- **2027 holidays** (S, deadline) — **provisional**: both tables carry the fixed lunar dates and a `PROVISIONAL_YEARS` marker; the tooltip and the coverage test say the State Council notice is still pending. Replace the spans when it lands.
 - **ETag on the balance route** (XS) — **done** — it sends `no-store`, so every poll is a full request. Cheap win, same pattern as the mascot route.
 - **Schedule changes** (S) — **documented**: both copies cite the pricing page as the source of truth and name the parity test, which now drives 2026-2027.
 
@@ -68,6 +61,7 @@ A Settings → Plugins panel for size, sound, and "show balance / show rate".
 
 ## Parked on purpose
 
+- **An annual Chinese-holiday table.** Dropped deliberately: it needs a State Council notice every November, a forecast mis-prices days when the notice is late, and a wrong holiday is invisible in the UI. Both badges now run the weekday rule and say in the tooltip that public holidays are not tracked.
 - **A gallery of mascots.** One good character beats a shop.
 - **Per-line style/typography authoring.** That is how the reference plugin reached 22k lines; it is configuration UI masquerading as personality.
 - **Desktop-specific code paths.** The bundle is shared; only storage differs, and #2 closes that.

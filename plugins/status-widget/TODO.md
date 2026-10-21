@@ -109,7 +109,7 @@ Every known gap in this plugin, in one place. Grouped by area, not by priority. 
 
 **Tests**
 
-- [x] Schedule, parity with rate-hours, holiday coverage
+- [x] Schedule, parity with rate-hours, and the public-holiday limitation pinned by a test
 - [x] Balance normalisation, request, cache
 - [x] Host routes: balance, mascot, prefs, ETag, validation
 - [x] Placement maths, drop decision, mascot states

@@ -115,7 +115,7 @@ IDs are stable so they can be referenced in commits and issues.
 | F10 | Rate-class history strip | M | ★★ | last 24h at a glance |
 | F11 | Currency preference | S | ★★ | show USD, CNY, or both |
 | F12 | Balance delta this hour | S | ★★ | from the cache |
-| F13 | Holiday-aware rate | ✓ | ★★★ | shipped, and neither competitor has it |
+| F13 | Holiday-aware rate | — | ★★★ | dropped: the annual State Council table was yearly maintenance, and a forecast mis-prices days; the tooltip now states that holidays are not tracked |
 | F14 | Monthly invoice view | L | ★ | a spreadsheet, not a mascot |
 
 ## G. Sound (8)
@@ -249,7 +249,7 @@ IDs are stable so they can be referenced in commits and issues.
 
 166 entries: 14 + 13 + 15 + 11 + 15 + 14 + 8 + 9 + 12 + 10 + 8 + 7 + 9 + 9 + 10.
 
-Shipped: 27. Open: 139.
+Shipped: 26. Open: 140.
 
 ## Data-source status
 

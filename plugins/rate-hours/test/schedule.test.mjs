@@ -6,7 +6,8 @@
  *      the right slot — the handshake that silently produces a blank screen
  *      when it is wrong.
  *   2. The schedule: both peak blocks and their four edges, the gap between
- *      them, weekends, Chinese public holidays, and the weekday after one.
+ *      them, weekends, and the documented limitation that Chinese public
+ *      holidays are not tracked.
  *   3. The component builds a sane element tree against a React stub. Real
  *      React lives in the browser shell bundle, not on disk, so the render
  *      check cannot be an SSR render.
@@ -122,7 +123,7 @@ for (const [time, peak, why] of [
 	})
 }
 
-console.log('\nschedule: weekends and holidays')
+console.log('\nschedule: weekends')
 
 test('Saturday is off-peak all day', () => {
 	assert.equal(schedule.isPeak(at('2026-03-07T02:00:00Z')), false)
@@ -130,46 +131,16 @@ test('Saturday is off-peak all day', () => {
 test('Sunday is off-peak all day', () => {
 	assert.equal(schedule.isPeak(at('2026-03-08T02:00:00Z')), false)
 })
-test('a holiday weekday is off-peak (Mon 2026-10-05, National Day)', () => {
-	assert.equal(schedule.isPeak(at('2026-10-05T02:00:00Z')), false)
-})
-test('the weekday after the holiday is peak again (Thu 2026-10-08)', () => {
-	assert.equal(schedule.isPeak(at('2026-10-08T02:00:00Z')), true)
-})
-test('every holiday span covers a weekday that would otherwise be peak', () => {
-	for (const [year, spans] of Object.entries(schedule.HOLIDAYS)) {
-		for (const [start, end] of spans) {
-			let t = at(`${start}T02:00:00Z`)
-			const stop = at(`${end}T02:00:00Z`)
-			for (; t <= stop; t += 86400000) {
-				if ([0, 6].includes(new Date(t).getUTCDay())) continue
-				assert.equal(schedule.isPeak(t), false, `${new Date(t).toISOString().slice(0, 10)} in ${year} should be holiday-off-peak`)
-			}
-		}
-	}
-})
-test('Beijing dates roll at 16:00 UTC', () => {
-	assert.equal(schedule.beijingDate(at('2026-09-30T17:00:00Z')), '2026-10-01')
-	assert.equal(schedule.beijingDate(at('2026-10-31T16:00:00Z')), '2026-11-01')
-})
-test('2027 is covered, but marked provisional rather than published', () => {
-	assert.equal(schedule.holidayDataKnown('2027-10-05'), true)
-	assert.equal(schedule.holidayDataProvisional('2027-10-05'), true)
-	const status = schedule.describe(at('2027-10-05T02:00:00Z'))
-	assert.equal(status.holiday, true, 'National Day is in the 2027 table')
-	assert.equal(status.holidayKnown, true)
-	assert.equal(status.holidayProvisional, true)
-	assert.match(status.title, /2027 holiday dates are provisional/)
-	assert.equal(schedule.holidayDataProvisional('2026-10-05'), false, 'the 2026 notice is published')
-})
 
-test('an unknown year falls back to the weekday rule and says so', () => {
-	assert.equal(schedule.holidayDataKnown('2028-10-05'), false)
-	const status = schedule.describe(at('2028-10-05T02:00:00Z'))
-	assert.equal(status.holiday, false)
-	assert.equal(status.holidayKnown, false)
-	assert.equal(status.holidayProvisional, false)
-	assert.match(status.title, /No holiday table for 2028/)
+test('a Chinese public holiday follows the weekday rule — the known limitation', () => {
+	// 2026-10-05 is National Day, a Monday. DeepSeek bills it off-peak; this
+	// badge does not carry a holiday table, so it reports the weekday rule and
+	// says so in the tooltip. Pinning the wrong answer is the point: it makes the
+	// limitation visible instead of leaving a silent gap.
+	assert.equal(schedule.isPeak(at('2026-10-05T02:00:00Z')), true)
+	const status = schedule.describe(at('2026-10-05T02:00:00Z'))
+	assert.equal(status.text.includes('Peak pricing'), true)
+	assert.match(status.title, /Chinese public holidays are not tracked/)
 })
 
 console.log('\nschedule: transitions')
@@ -233,10 +204,6 @@ test('builds a dot and a rate line for each rate class', () => {
 	assert.match(offpeak, /peak in 13h 39m/)
 	assert.match(offpeak, /#f5a524/)
 
-	const holiday = markup(at('2026-10-05T02:00:00Z'))
-	assert.match(holiday, /Holiday off-peak/)
-	assert.match(holiday, /#3fb950/)
-
 	const weekend = markup(at('2026-10-24T02:00:00Z'))
 	assert.match(weekend, /Weekend off-peak/)
 	assert.match(weekend, /#3fb950/)
@@ -245,7 +212,7 @@ test('builds a dot and a rate line for each rate class', () => {
 test('the tooltip states the schedule and its own uncertainty', () => {
 	const status = schedule.describe(at('2026-10-20T11:21:00Z'))
 	assert.match(status.title, /01:00-04:00 and 06:00-10:00 UTC/)
-	assert.match(status.title, /excluding Chinese public holidays/)
+	assert.match(status.title, /Chinese public holidays are not tracked/)
 	assert.match(status.title, /browser clock, not the Host/)
 })
 

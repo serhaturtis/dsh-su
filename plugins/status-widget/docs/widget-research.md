@@ -84,4 +84,4 @@ Value is judged by "does this tell the user something true that they would other
 
 ## Our position, honestly
 
-We are the smallest of the three and the only one whose status surface is *rate-aware*. Neither competitor treats the peak/off-peak boundary as a first-class event, and one of them still gets Chinese holidays wrong. That is the niche worth deepening rather than broadening: **"the widget that knows what you are being charged, right now, and tells you when it changes."**
+We are the smallest of the three and the only one whose status surface is *rate-aware*. Neither competitor treats the peak/off-peak boundary as a first-class event. That is the niche worth deepening rather than broadening: **"the widget that knows what you are being charged, right now, and tells you when it changes."** Like them, we do not track Chinese public holidays — the tooltip says so rather than pretending the weekday rule is the whole pricing calendar.

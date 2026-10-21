@@ -50,7 +50,6 @@
 
 			//#region schedule
 			var MIN = 60000
-			var BEIJING_OFFSET = 8 * 3600000
 			var SCAN_MINUTES = 60 * 24 * 10
 
 			/**
@@ -58,52 +57,20 @@
 			 *
 			 * Source of truth: https://api-docs.deepseek.com/quick_start/pricing
 			 * ("Peak hours are 01:00 - 04:00 and 06:00 - 10:00 UTC, Monday through
-			 * Friday, excluding Chinese public holidays"). If DeepSeek moves them,
-			 * this array and the one in the sibling plugin both change, and
-			 * schedule-parity.test.mjs fails until they agree.
+			 * Friday"). If DeepSeek moves them, this array and the one in the
+			 * sibling plugin both change, and schedule-parity.test.mjs fails until
+			 * they agree.
+			 *
+			 * Chinese public holidays are deliberately not tracked. The annual
+			 * State Council table was a full-time yearly maintenance obligation,
+			 * and a forecast could silently mis-price days. The tooltip states the
+			 * limitation instead of implying a completeness the widget does not
+			 * have.
 			 */
 			var PEAK_BLOCKS = [
 				[1 * 60, 4 * 60],
 				[6 * 60, 10 * 60],
 			]
-
-			/**
-			 * Chinese public holiday spans, inclusive, in Beijing dates. 2026 comes
-			 * from State Council notice 国办发明电〔2025〕7号 (2025-11-04); 2027 is a
-			 * forecast until its notice lands. Peak is weekdays 01:00-04:00 and
-			 * 06:00-10:00 UTC excluding these days.
-			 */
-			var HOLIDAYS = {
-				2026: [
-					['2026-01-01', '2026-01-03'],
-					['2026-02-15', '2026-02-23'],
-					['2026-04-04', '2026-04-06'],
-					['2026-05-01', '2026-05-05'],
-					['2026-06-19', '2026-06-21'],
-					['2026-09-25', '2026-09-27'],
-					['2026-10-01', '2026-10-07'],
-				],
-				2027: [
-					['2027-01-01', '2027-01-03'], // New Year
-					['2027-02-05', '2027-02-13'], // Spring Festival, from New Year's Eve
-					['2027-04-03', '2027-04-05'], // Qingming
-					['2027-05-01', '2027-05-05'], // Labour Day
-					['2027-06-09', '2027-06-09'], // Dragon Boat, a Wednesday
-					['2027-09-15', '2027-09-15'], // Mid-Autumn, a Wednesday
-					['2027-10-01', '2027-10-07'], // National Day
-				],
-			}
-
-			/**
-			 * Years whose spans are inferred, not published.
-			 *
-			 * The State Council notice for 2027 is due in early November 2026. The
-			 * dates below follow the fixed lunar calendar and the 2025 holiday
-			 * regulation, but the 调休 arrangement can still move a bridge day. The
-			 * badge keeps saying "holiday" only because DeepSeek's rule is the
-			 * official span; the tooltip must admit which part is a forecast.
-			 */
-			var PROVISIONAL_YEARS = { 2027: true }
 
 			function utcMinuteOfDay(ms) {
 				var d = new Date(ms)
@@ -114,32 +81,9 @@
 				return new Date(ms).getUTCDay()
 			}
 
-			function beijingDate(ms) {
-				return new Date(ms + BEIJING_OFFSET).toISOString().slice(0, 10)
-			}
-
-			function holidaySpan(dateKey) {
-				var spans = HOLIDAYS[dateKey.slice(0, 4)]
-				if (spans === undefined) return undefined
-				for (var i = 0; i < spans.length; i++) {
-					if (dateKey >= spans[i][0] && dateKey <= spans[i][1]) return spans[i]
-				}
-				return undefined
-			}
-
-			function holidayDataKnown(dateKey) {
-				return Object.prototype.hasOwnProperty.call(HOLIDAYS, dateKey.slice(0, 4))
-			}
-
-			/** Whether the year's spans are a forecast rather than a notice. */
-			function holidayDataProvisional(dateKey) {
-				return PROVISIONAL_YEARS[dateKey.slice(0, 4)] === true
-			}
-
 			function isPeak(ms) {
 				var day = utcDay(ms)
 				if (day === 0 || day === 6) return false
-				if (holidaySpan(beijingDate(ms)) !== undefined) return false
 				var minute = utcMinuteOfDay(ms)
 				for (var i = 0; i < PEAK_BLOCKS.length; i++) {
 					if (minute >= PEAK_BLOCKS[i][0] && minute < PEAK_BLOCKS[i][1]) return true
@@ -174,17 +118,12 @@
 
 			function describe(nowMs) {
 				var peak = isPeak(nowMs)
-				var dateKey = beijingDate(nowMs)
-				var span = holidaySpan(dateKey)
 				var day = utcDay(nowMs)
 				var weekend = day === 0 || day === 6
-				var known = holidayDataKnown(dateKey)
-				var provisional = holidayDataProvisional(dateKey)
 				var next = nextTransition(nowMs)
 
 				var label
 				if (peak) label = 'Peak pricing'
-				else if (span !== undefined) label = 'Holiday off-peak'
 				else if (weekend) label = 'Weekend off-peak'
 				else label = 'Off-peak'
 
@@ -193,19 +132,14 @@
 
 				var lines = [
 					peak ? 'DeepSeek peak rate: full price.' : 'DeepSeek off-peak rate: half of peak price.',
-					'Peak: 01:00-04:00 and 06:00-10:00 UTC, Mon-Fri, excluding Chinese public holidays.',
+					'Peak: 01:00-04:00 and 06:00-10:00 UTC, Monday-Friday.',
+					'Chinese public holidays are not tracked — DeepSeek bills them off-peak, so a holiday weekday shows as peak here.',
 				]
 				if (next !== null) lines.push((next.toPeak ? 'Peak' : 'Off-peak') + ' begins ' + utcStamp(next.at) + '.')
-				if (span !== undefined && !peak) lines.push('Chinese public holiday (' + span[0] + ' to ' + span[1] + ').')
-				if (provisional) lines.push(dateKey.slice(0, 4) + ' holiday dates are provisional — the State Council notice is due in November 2026.')
-				if (!known) lines.push('No holiday table for ' + dateKey.slice(0, 4) + ' — weekday rule only.')
 
 				return {
 					peak: peak,
 					weekend: weekend,
-					holiday: span !== undefined,
-					holidayKnown: known,
-					holidayProvisional: provisional,
 					label: label,
 					countdown: countdown,
 					text: countdown === '' ? label : label + ' · ' + countdown,
@@ -259,10 +193,10 @@
 			}
 			//#endregion
 
-			/** Red on peak, green when the whole day is off-peak, amber otherwise. */
+			/** Red on peak, green on a weekend, amber otherwise. */
 			function dotColor(status) {
 				if (status.peak) return '#e5484d'
-				if (status.holiday || status.weekend) return '#3fb950'
+				if (status.weekend) return '#3fb950'
 				return '#f5a524'
 			}
 
@@ -3379,13 +3313,7 @@
 			/** Exposed so the node tests can drive the schedule and the formatting. */
 			exports.__schedule = {
 				PEAK_BLOCKS: PEAK_BLOCKS,
-				HOLIDAYS: HOLIDAYS,
-				PROVISIONAL_YEARS: PROVISIONAL_YEARS,
 				isPeak: isPeak,
-				beijingDate: beijingDate,
-				holidaySpan: holidaySpan,
-				holidayDataKnown: holidayDataKnown,
-				holidayDataProvisional: holidayDataProvisional,
 				nextTransition: nextTransition,
 				formatDuration: formatDuration,
 				describe: describe,

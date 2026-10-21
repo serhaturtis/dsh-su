@@ -60,9 +60,6 @@ assert.equal(
 )
 console.log('  ok   isPeak agrees on every 15-minute sample of 2026-2027')
 
-assert.deepEqual(ours.HOLIDAYS, theirs.HOLIDAYS)
-console.log('  ok   holiday tables are identical')
-
 for (const iso of [
 	'2026-03-07T02:00:00Z',
 	'2026-10-05T02:00:00Z',
@@ -79,4 +76,4 @@ for (const iso of [
 }
 console.log('  ok   descriptions and transitions agree at sample instants')
 
-console.log('\n3/3 checks passed')
+console.log('\n2/2 checks passed')

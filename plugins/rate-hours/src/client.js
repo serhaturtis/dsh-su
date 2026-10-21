@@ -28,68 +28,23 @@
 
 			//#region schedule
 			var MIN = 60000
-			var DAY = 86400000
-			var BEIJING_OFFSET = 8 * 3600000
 			/** Scan bound: a transition always exists within a week; 10 days is slack. */
 			var SCAN_MINUTES = 60 * 24 * 10
 
 			/**
 			 * Peak blocks as half-open [start, end) minute ranges from 00:00 UTC.
 			 * 01:00-04:00 and 06:00-10:00 UTC, Monday through Friday.
+			 *
+			 * Chinese public holidays are deliberately not tracked. The annual
+			 * State Council table was a yearly maintenance obligation, and a
+			 * forecast could silently mis-price days. The tooltip states the
+			 * limitation instead of implying a completeness this badge does not
+			 * have.
 			 */
 			var PEAK_BLOCKS = [
 				[1 * 60, 4 * 60],
 				[6 * 60, 10 * 60],
 			]
-
-			/**
-			 * Chinese public holiday spans, inclusive, in Beijing calendar dates.
-			 *
-			 * Source: State Council notice 国办发明电〔2025〕7号 (2025-11-04),
-			 * https://www.gov.cn/zhengce/content/202511/content_7047090.htm —
-			 * DeepSeek prices Chinese public holidays as off-peak "in full".
-			 *
-			 * These are the official holiday spans, weekend days inside them
-			 * included (they are off-peak anyway). The 调休 makeup workdays (Jan 4,
-			 * Feb 14, Feb 28, May 9, Sep 20, Oct 10) are deliberately absent:
-			 * they fall on Saturdays and Sundays, which stay off-peak.
-			 *
-			 * A year absent from this table is not guessed at; the badge says so in
-			 * its tooltip and falls back to the weekday rule. 2027 is present as a
-			 * forecast and flagged in PROVISIONAL_YEARS; replace its spans when the
-			 * State Council notice is published.
-			 */
-			var HOLIDAYS = {
-				2026: [
-					['2026-01-01', '2026-01-03'], // New Year
-					['2026-02-15', '2026-02-23'], // Spring Festival
-					['2026-04-04', '2026-04-06'], // Qingming
-					['2026-05-01', '2026-05-05'], // Labour Day
-					['2026-06-19', '2026-06-21'], // Dragon Boat
-					['2026-09-25', '2026-09-27'], // Mid-Autumn
-					['2026-10-01', '2026-10-07'], // National Day
-				],
-				2027: [
-					['2027-01-01', '2027-01-03'], // New Year
-					['2027-02-05', '2027-02-13'], // Spring Festival, from New Year's Eve
-					['2027-04-03', '2027-04-05'], // Qingming
-					['2027-05-01', '2027-05-05'], // Labour Day
-					['2027-06-09', '2027-06-09'], // Dragon Boat, a Wednesday
-					['2027-09-15', '2027-09-15'], // Mid-Autumn, a Wednesday
-					['2027-10-01', '2027-10-07'], // National Day
-				],
-			}
-
-			/**
-			 * Years whose spans are inferred, not published.
-			 *
-			 * The State Council publishes the next year's arrangement in early
-			 * November; the 2027 notice is not out yet. These dates follow the fixed
-			 * lunar calendar and the 2025 holiday regulation, but a 调休 bridge day
-			 * can still move. The tooltip says so rather than presenting a forecast
-			 * as a notice.
-			 */
-			var PROVISIONAL_YEARS = { 2027: true }
 
 			/** Minute of the UTC day, 0..1439. */
 			function utcMinuteOfDay(ms) {
@@ -103,45 +58,14 @@
 			}
 
 			/**
-			 * Beijing calendar date as YYYY-MM-DD. Holidays are a Beijing-local
-			 * concept, and every peak block (01:00-10:00 UTC) lands on the same
-			 * Beijing date as the UTC date it starts on, so this key classifies
-			 * exactly the minutes that peak blocks cover.
-			 */
-			function beijingDate(ms) {
-				return new Date(ms + BEIJING_OFFSET).toISOString().slice(0, 10)
-			}
-
-			/** The holiday span containing `dateKey`, or undefined. */
-			function holidaySpan(dateKey) {
-				var spans = HOLIDAYS[dateKey.slice(0, 4)]
-				if (spans === undefined) return undefined
-				for (var i = 0; i < spans.length; i++) {
-					if (dateKey >= spans[i][0] && dateKey <= spans[i][1]) return spans[i]
-				}
-				return undefined
-			}
-
-			/** Whether the holiday table covers the year `dateKey` falls in. */
-			function holidayDataKnown(dateKey) {
-				return Object.prototype.hasOwnProperty.call(HOLIDAYS, dateKey.slice(0, 4))
-			}
-
-			/** Whether the year's spans are a forecast rather than a notice. */
-			function holidayDataProvisional(dateKey) {
-				return PROVISIONAL_YEARS[dateKey.slice(0, 4)] === true
-			}
-
-			/**
 			 * Whether `ms` bills at peak rates.
 			 *
-			 * Weekends and Chinese public holidays are off-peak all day; otherwise
-			 * the UTC minute decides.
+			 * Weekends are off-peak all day; otherwise the UTC minute decides. A
+			 * Chinese public holiday is a weekday here, so it is reported as peak.
 			 */
 			function isPeak(ms) {
 				var day = utcDay(ms)
 				if (day === 0 || day === 6) return false
-				if (holidaySpan(beijingDate(ms)) !== undefined) return false
 				var minute = utcMinuteOfDay(ms)
 				for (var i = 0; i < PEAK_BLOCKS.length; i++) {
 					if (minute >= PEAK_BLOCKS[i][0] && minute < PEAK_BLOCKS[i][1]) return true
@@ -197,17 +121,12 @@
 			 */
 			function describe(nowMs) {
 				var peak = isPeak(nowMs)
-				var dateKey = beijingDate(nowMs)
-				var span = holidaySpan(dateKey)
 				var day = utcDay(nowMs)
 				var weekend = day === 0 || day === 6
-				var known = holidayDataKnown(dateKey)
-				var provisional = holidayDataProvisional(dateKey)
 				var next = nextTransition(nowMs)
 
 				var label
 				if (peak) label = 'Peak pricing'
-				else if (span !== undefined) label = 'Holiday off-peak'
 				else if (weekend) label = 'Weekend off-peak'
 				else label = 'Off-peak'
 
@@ -218,20 +137,15 @@
 
 				var lines = [
 					peak ? 'DeepSeek peak rate: full price.' : 'DeepSeek off-peak rate: half of peak price.',
-					'Peak: 01:00-04:00 and 06:00-10:00 UTC, Mon-Fri, excluding Chinese public holidays.',
+					'Peak: 01:00-04:00 and 06:00-10:00 UTC, Monday-Friday.',
+					'Chinese public holidays are not tracked — DeepSeek bills them off-peak, so a holiday weekday shows as peak here.',
 				]
 				if (next !== null) lines.push((next.toPeak ? 'Peak' : 'Off-peak') + ' begins ' + utcStamp(next.at) + '.')
-				if (span !== undefined && !peak) lines.push('Chinese public holiday (' + span[0] + ' to ' + span[1] + ').')
-				if (provisional) lines.push(dateKey.slice(0, 4) + ' holiday dates are provisional — the State Council notice is due in November 2026.')
-				if (!known) lines.push('No holiday table for ' + dateKey.slice(0, 4) + ' — weekday rule only.')
 				lines.push('Computed from this browser clock, not the Host.')
 
 				return {
 					peak: peak,
 					weekend: weekend,
-					holiday: span !== undefined,
-					holidayKnown: known,
-					holidayProvisional: provisional,
 					label: label,
 					countdown: countdown,
 					text: countdown === '' ? label : label + ' · ' + countdown,
@@ -242,10 +156,10 @@
 			}
 			//#endregion
 
-			/** Red on peak, green when the whole day is off-peak, amber otherwise. */
+			/** Red on peak, green on a weekend, amber otherwise. */
 			function dotColor(status) {
 				if (status.peak) return '#e5484d'
-				if (status.holiday || status.weekend) return '#3fb950'
+				if (status.weekend) return '#3fb950'
 				return '#f5a524'
 			}
 
@@ -318,13 +232,7 @@
 			/** Exposed so the node tests can drive the schedule without a browser. */
 			exports.__schedule = {
 				PEAK_BLOCKS: PEAK_BLOCKS,
-				HOLIDAYS: HOLIDAYS,
-				PROVISIONAL_YEARS: PROVISIONAL_YEARS,
 				isPeak: isPeak,
-				beijingDate: beijingDate,
-				holidaySpan: holidaySpan,
-				holidayDataKnown: holidayDataKnown,
-				holidayDataProvisional: holidayDataProvisional,
 				nextTransition: nextTransition,
 				runStart: runStart,
 				formatDuration: formatDuration,

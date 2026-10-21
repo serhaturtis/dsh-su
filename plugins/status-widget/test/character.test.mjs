@@ -82,8 +82,8 @@ test('the plain fallback name still resolves to the idle drawing', () => {
 console.log('\nstate selection')
 
 test('a balance error is worried, a healthy off-peak reading is happy', () => {
-	const offPeak = { peak: false, holiday: false, weekend: false }
-	const peak = { peak: true, holiday: false, weekend: false }
+	const offPeak = { peak: false, weekend: false }
+	const peak = { peak: true, weekend: false }
 	assert.equal(character.characterState(offPeak, { ok: false, reason: 'no-key' }), 'worried')
 	assert.equal(character.characterState(offPeak, { ok: true }), 'happy')
 	assert.equal(character.characterState(peak, { ok: true }), 'idle')
