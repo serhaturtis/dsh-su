@@ -44,6 +44,7 @@ globalThis.window = {
 	localStorage: {
 		getItem: (key) => (store.has(key) ? store.get(key) : null),
 		setItem: (key, value) => store.set(key, value),
+		removeItem: (key) => store.delete(key),
 	},
 }
 await import(`${file}?v=${Math.random()}`)
@@ -192,6 +193,34 @@ test('every mode produces its margin explicitly', () => {
 	assert.equal(free.character.width, dockedRight.character.width)
 	assert.equal(free.tail.left, '50%')
 	assert.equal(free.tail.marginLeft, '-5.5px')
+})
+
+test('a Max character keeps the dock margin, not just the frame', () => {
+	const size = exported.__menu.resolveSize('max')
+	const layout = exported.__character.layoutFor({ mode: 'docked', side: 'right', bottom: 24 }, size)
+	// The frame is 220 but Max is 260: the drawing overhangs 20px each side.
+	// The frame margin grows by that overhang, so the drawing — not the frame —
+	// still sits 32px from the window edge.
+	assert.equal(layout.root.right, '52px')
+	const overhang = (size.width - exported.__character.FRAME_WIDTH) / 2
+	assert.equal(parseInt(layout.root.right, 10) - overhang, exported.__character.DOCK_MARGIN)
+})
+
+test('the tail points at the character centre at every size', () => {
+	// The bubble and the character are centred in the same flex frame, so 50% of
+	// the bubble is also the frame centre — even when the bubble is narrower than
+	// a Max character.
+	for (const size of exported.__menu.SIZES) {
+		for (const placement of [
+			{ mode: 'docked', side: 'left', bottom: 24 },
+			{ mode: 'docked', side: 'right', bottom: 24 },
+			{ mode: 'free', x: 300, y: 200 },
+		]) {
+			const layout = exported.__character.layoutFor(placement, size)
+			assert.equal(layout.tail.left, '50%', `${size.id} tail is not centred`)
+			assert.equal(layout.tail.marginLeft, '-5.5px')
+		}
+	}
 })
 
 test('the bubble hangs outside her box and points at her', () => {
@@ -504,6 +533,76 @@ test('a finished turn shows its cost in the bubble', () => {
 	const tree = render(at('2026-10-20T11:21:00Z'))
 	assert.match(flatten(tree), /Last turn \$0\.0042/)
 	cost.publishTurnCost(null, null)
+})
+
+console.log('\ntoday’s spend')
+
+test('the day key is local, not UTC', () => {
+	const spend = exported.__spend
+	// Local midnight is the reset boundary the user sees, regardless of UTC.
+	assert.equal(spend.localDay(new Date(2026, 9, 22, 0, 30).getTime()), '2026-10-22')
+	assert.equal(spend.localDay(new Date(2026, 11, 31, 23, 59).getTime()), '2026-12-31')
+})
+
+test('turn estimates accumulate and survive a reload', () => {
+	const spend = exported.__spend
+	const now = new Date(2026, 9, 22, 10, 0).getTime()
+	spend.reset()
+	assert.deepEqual(spend.readSpend(now), { day: '2026-10-22', total: 0, turns: 0 })
+	spend.addSpend(0.01, now)
+	spend.addSpend(0.02, now)
+	const live = spend.readSpend(now)
+	assert.equal(live.day, '2026-10-22')
+	assert.equal(live.turns, 2)
+	assert.ok(Math.abs(live.total - 0.03) < 1e-12, 'two turns add up')
+	spend.forget()
+	const reloaded = spend.readSpend(now)
+	assert.equal(reloaded.day, '2026-10-22')
+	assert.equal(reloaded.turns, 2)
+	assert.ok(Math.abs(reloaded.total - 0.03) < 1e-12, 'the bucket is persisted')
+	spend.reset()
+})
+
+test('the bucket resets at local midnight', () => {
+	const spend = exported.__spend
+	const first = new Date(2026, 9, 22, 23, 59).getTime()
+	const next = new Date(2026, 9, 23, 0, 1).getTime()
+	spend.reset()
+	spend.addSpend(0.5, first)
+	assert.equal(spend.readSpend(next).total, 0)
+	spend.addSpend(0.25, next)
+	assert.deepEqual(spend.readSpend(next), { day: '2026-10-23', total: 0.25, turns: 1 })
+	spend.reset()
+})
+
+test('unreadable, negative and non-finite costs are ignored', () => {
+	const spend = exported.__spend
+	const now = new Date(2026, 9, 22, 10, 0).getTime()
+	spend.reset()
+	for (const cost of [0, -1, NaN, Infinity, '0.01', null]) spend.addSpend(cost, now)
+	assert.deepEqual(spend.readSpend(now), { day: '2026-10-22', total: 0, turns: 0 })
+	spend.reset()
+})
+
+test('corrupt storage starts a clean day instead of throwing', () => {
+	const spend = exported.__spend
+	const now = new Date(2026, 9, 22, 10, 0).getTime()
+	spend.reset()
+	globalThis.window.localStorage.setItem(spend.SPEND_KEY, '{not json')
+	spend.forget()
+	assert.deepEqual(spend.readSpend(now), { day: '2026-10-22', total: 0, turns: 0 })
+	spend.reset()
+})
+
+test('today’s estimate appears in the bubble and the tooltip', () => {
+	const spend = exported.__spend
+	const now = new Date(2026, 9, 22, 10, 0).getTime()
+	spend.reset()
+	spend.addSpend(0.12, now)
+	const tree = render(now)
+	assert.match(flatten(tree), /Today \$0\.120/)
+	assert.match(tree.props.title, /Today \(estimate\): \$0\.120 across 1 turn\./)
+	spend.reset()
 })
 
 test('the model choice persists and defaults to flash', () => {

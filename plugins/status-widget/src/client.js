@@ -1430,6 +1430,69 @@
 				if (value === 0) return '$0.0000'
 				return '$' + (value < 0.01 ? value.toFixed(4) : value.toFixed(3))
 			}
+
+			/**
+			 * Today's estimated spend, for this browser.
+			 *
+			 * This is the same per-turn estimate as `Last turn`, accumulated for the
+			 * local day in `localStorage`. It is deliberately not session-log
+			 * accounting: it sees only turns this page watched, it is per browser,
+			 * and two tabs watching one turn would both count it. The label says
+			 * "estimate" and the README states those limits.
+			 */
+			var SPEND_KEY = 'dsh-status-widget:spend:v1'
+			var spendState = null
+
+			/** Local calendar date, because "today" is the user's day, not UTC's. */
+			function localDay(ms) {
+				var d = new Date(ms)
+				var month = d.getMonth() + 1
+				var day = d.getDate()
+				return d.getFullYear() + '-' + (month < 10 ? '0' : '') + month + '-' + (day < 10 ? '0' : '') + day
+			}
+
+			/** Today's bucket, resetting at local midnight and on unreadable storage. */
+			function readSpend(nowMs) {
+				var day = localDay(nowMs)
+				if (spendState !== null && spendState.day === day) return spendState
+				var stored = null
+				try {
+					stored = JSON.parse(window.localStorage.getItem(SPEND_KEY))
+				} catch {
+					stored = null
+				}
+				var valid =
+					stored !== null &&
+					typeof stored === 'object' &&
+					stored.day === day &&
+					typeof stored.total === 'number' &&
+					isFinite(stored.total) &&
+					stored.total >= 0 &&
+					typeof stored.turns === 'number' &&
+					isFinite(stored.turns) &&
+					stored.turns >= 0
+				spendState = valid
+					? { day: day, total: stored.total, turns: Math.floor(stored.turns) }
+					: { day: day, total: 0, turns: 0 }
+				return spendState
+			}
+
+			function writeSpend(state) {
+				try {
+					window.localStorage.setItem(SPEND_KEY, JSON.stringify(state))
+				} catch {
+					/* a blocked quota must not break turn accounting */
+				}
+			}
+
+			/** Add one turn's estimate; non-positive or unreadable costs are ignored. */
+			function addSpend(cost, nowMs) {
+				var state = readSpend(nowMs)
+				if (typeof cost !== 'number' || !isFinite(cost) || cost <= 0) return state
+				spendState = { day: state.day, total: state.total + cost, turns: state.turns + 1 }
+				writeSpend(spendState)
+				return spendState
+			}
 			//#endregion
 
 			//#region approvals
@@ -2309,6 +2372,7 @@
 				}, [])
 
 				var status = describe(now)
+				var spend = readSpend(now)
 				var money = readBalance(balance)
 				var mainId = runtime.sessions === undefined ? null : mainSessionId(runtime.sessions)
 				var pressure = readPressure(runtime.sessions, mainId)
@@ -2331,6 +2395,9 @@
 					status.title +
 					(pressure !== null && pressure.ratio !== null
 						? '\n\nContext ' + Math.round(pressure.ratio * 100) + '% (' + pressure.used + ' of ' + pressure.window + ' tokens).'
+						: '') +
+					(spend.total > 0
+						? '\n\nToday (estimate): ' + formatUsd(spend.total) + ' across ' + spend.turns + (spend.turns === 1 ? ' turn.' : ' turns.')
 						: '') +
 					'\n\n' +
 					money.title
@@ -2669,6 +2736,9 @@
 						costState !== null && now - costState.at < 60000 && !collapsed
 							? React.createElement('div', { style: costLineStyle }, 'Last turn ' + formatUsd(costState.usd))
 							: null,
+						spend.total > 0 && !collapsed
+							? React.createElement('div', { style: costLineStyle }, 'Today ' + formatUsd(spend.total))
+							: null,
 						React.createElement('span', { style: tailStyle }),
 					),
 					sheet !== null
@@ -2750,7 +2820,12 @@
 					root.left = placement.x + 'px'
 					root.top = placement.y + 'px'
 				} else {
-					root[placement.side] = DOCK_MARGIN + 'px'
+					// Max is wider than the frame, so the character overhangs it on
+					// both sides. The frame's margin alone would leave her 20px closer
+					// to the edge than the bubble; push the frame out by the overhang
+					// so the drawing keeps the same 32px margin.
+					var overhang = Math.max(0, size.width - FRAME_WIDTH) / 2
+					root[placement.side] = DOCK_MARGIN + overhang + 'px'
 					root.bottom = placement.bottom + 'px'
 				}
 
@@ -3272,7 +3347,11 @@
 										var before = baseline.get(id)
 										baseline.delete(id)
 										var delta = usageDelta(before === undefined ? null : before, readUsage(sessions, id))
-										if (delta !== null) publishTurnCost(costOf(delta, isPeak(Date.now()), readModel()), delta)
+										if (delta !== null) {
+											var cost = costOf(delta, isPeak(Date.now()), readModel())
+											publishTurnCost(cost, delta)
+											if (cost !== null) addSpend(cost, Date.now())
+										}
 									}
 									previous.set(id, now)
 								}
@@ -3388,6 +3467,25 @@
 				publishTurnCost: publishTurnCost,
 				readTurnCost: readTurnCost,
 				subscribeTurnCost: subscribeTurnCost,
+			}
+			exports.__spend = {
+				SPEND_KEY: SPEND_KEY,
+				localDay: localDay,
+				readSpend: readSpend,
+				addSpend: addSpend,
+				/** Forget the in-memory copy, as a reload would. */
+				forget: function () {
+					spendState = null
+				},
+				/** Clear the day bucket, for tests and a deliberate reset. */
+				reset: function () {
+					spendState = null
+					try {
+						window.localStorage.removeItem(SPEND_KEY)
+					} catch {
+						/* nothing to clear */
+					}
+				},
 			}
 			exports.__approvals = {
 				readApproval: readApproval,
