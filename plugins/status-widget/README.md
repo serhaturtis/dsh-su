@@ -12,6 +12,8 @@ While a turn runs, a thin bar under the bubble shows how full the context window
 
 When a turn finishes, the bubble adds a third line: **`Last turn $0.0042`**. That is the delta between two readings of the `tokenUsage` projection — the four provider-reported buckets — priced with the published list rates at whatever rate class was in force. Off-peak is exactly half, and a test holds that relationship rather than hard-coding both columns.
 
+Each finished turn also feeds **`Today $0.123`**, a running estimate for your local day kept in this browser's storage. It resets at local midnight. This is not account spend: it counts model tokens for turns this page watched, priced the same way as `Last turn`.
+
 When a turn is blocked waiting for your approval, she leans in, the line becomes **"Waiting for your approval"**, the dot turns red and pulses, and a cue plays if sound is on. That signal comes from `uiSession.sessionStatus.pendingInteraction` — a push-based store, so it costs one subscription and no polling.
 
 A black Norwegian Forest cat with a white mask stands under it, in one of eight drawings: **idle**, **happy** (a turn just finished), **busy** (a turn is running), **worried** (the balance read failed), **sleepy** (ten quiet minutes), **wave** (first sighting), **pat** (a head pat) and **party** (the balance went up). She bobs while idle, hops when happy and leans in while busy. **Drag her anywhere (the bubble comes along)** — she snaps to the nearer edge and flips to face into the page. Click her to collapse the card to the balance alone.
@@ -87,15 +89,16 @@ Synthesised with WebAudio — two short tones, no audio files to ship or license
 
 ### Cost, honestly
 
-The figure covers **model tokens only**, priced at list rates for the model chosen in Settings (Flash by default). It cannot see account credits, negotiated discounts, retries billed elsewhere, or a mid-turn model switch. Cache writes are priced as ordinary input, because DeepSeek publishes a cache read discount but no separate write premium. A delta that goes negative — possible if compaction resets the fold — is clamped to zero rather than reported as a refund.
+The figure covers **model tokens only**, priced at list rates for the model chosen in Settings (Flash by default). It cannot see account credits, negotiated discounts, retries billed elsewhere, or a mid-turn model switch. Cache writes are priced as ordinary input, because DeepSeek publishes a cache read discount but no separate write premium. A delta that goes negative — possible if compaction resets the fold — is clamped to zero rather than reported as a refund. `Today` is the sum of these same estimates, so it inherits every one of those limits.
 
 ## Limits
 
 - **The balance is the account's, not the session's.** It says what is left, not what this conversation has cost.
-- **No usage history or per-day totals.** The whale derives spend from session logs; that is a much larger claim than "what does the account say", and this plugin does not make it.
+- **No usage history beyond today.** The `Today` estimate keeps only the current local day; the whale derives full spend from session logs, which is a much larger claim than this widget makes.
 - **One product assumption:** the credential is the DeepSeek API key. A profile signed in through the DeepSeek *account* provider has no `DEEPSEEK_API_KEY`, so the card says so instead of reading nothing.
 - **The art is generated, not drawn to the grid.** Judge it at 180 px wide — the size it actually ships. The four states are one generation, so continuity between poses is only as good as the sheet was.
 - **Chinese public holidays are not tracked.** The badge runs the weekday peak rule year-round. DeepSeek bills holidays off-peak, so a holiday weekday is shown as peak; the tooltip says so rather than shipping a table that needs a State Council notice every November.
+- **`Today` is an estimate, not a bill.** It lives in this browser's storage, counts only turns the page watched, resets at local midnight, and two tabs watching one turn can each add it. It cannot see account credits, discounts, or turns that happened while the page was closed.
 - **The schedule is duplicated** from `rate-hours` rather than imported: client bundles cannot require each other without a cross-plugin dependency, and either plugin should work alone. [`test/schedule-parity.test.mjs`](test/schedule-parity.test.mjs) drives both copies over every 15-minute sample of 2026-2027 and fails if they diverge.
 
 ## Feature catalogue

@@ -1,6 +1,6 @@
 # dsh-rate-hours
 
-> **Status: reference implementation, linked by the suite.** `status-widget` also shows the rate in the corner, so this composer-row badge is optional; keep it out of a profile with `sync-profile --except rate-hours`. It stays because it is the schedule implementation the parity test drives, and because a composer-row variant is a reasonable thing to re-enable with `--include rate-hours`.
+> **Status: reference implementation, excluded from the `web` profile.** `status-widget` also shows the rate in the corner, so this composer-row badge is optional. It stays because it is the schedule implementation the parity test drives, and because a composer-row variant is a reasonable thing to re-enable with `sync-profile --include rate-hours`.
 
 A DeepSeek Harness plugin that shows whether DeepSeek is billing you at **peak** or **off-peak** rates right now, and when that changes.
 
