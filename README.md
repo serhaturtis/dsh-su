@@ -5,7 +5,7 @@ A monorepo of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness
 ## Getting started
 
 ```sh
-git clone <this repo> && cd dsh-su
+git clone https://github.com/serhaturtis/dsh-su && cd dsh-su
 ./setup.sh                             # Node, then the Harness, then the plugins
 dsh --profile web web                  # boot the GUI
 ```
