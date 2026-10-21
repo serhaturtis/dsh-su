@@ -2,7 +2,7 @@
 
 Where this repo is, what is worth doing next, and what is deliberately parked. Ordered by value, not by effort. Each item says why it matters and what it costs.
 
-**State:** 2 plugins (`status-widget`, `rate-hours`), 7 test suites, 24 commits. `status-widget` is the live one; `rate-hours` is retired from the `web` profile but kept as the schedule reference that the parity test drives.
+**State:** 3 plugins (`hello`, `rate-hours`, `status-widget`), 9 test suites. `status-widget` is the live one; `hello` is the linked smoke test; `rate-hours` stays as the schedule reference and an optional composer variant.
 
 ## Done in this pass
 
@@ -14,7 +14,7 @@ What is left is listed below with the reason it is still open.
 
 | When | What | Why it bites |
 | --- | --- | --- |
-| **Early Nov 2026** | 2027 Chinese holiday table | The State Council notice lands around then. `holiday-coverage.test.mjs` **fails on 2027-01-01** until the spans are added — deliberate, but it means a red suite if nobody acts |
+| **Early Nov 2026** | Replace the provisional 2027 table | The State Council notice lands around then. A forecast table is in place and labelled as such, so the suite stays green; the spans still need replacing when the notice is published |
 
 ## Next
 
@@ -49,21 +49,21 @@ A Settings → Plugins panel for size, sound, and "show balance / show rate".
 ### Widget and character
 
 - **Sound cues** (M) — muted by default, per the decision recorded in the character plan. Three or four short cues: turn finished, low balance, error.
-- **Custom image upload** (M) — host route + `$DSH_HOME` file, validated type and size. The whale's most-loved feature and the one that makes the mascot *yours*.
-- **Keyboard access** (S) — **mostly done**: the widget is focusable, Shift+F10 opens the menu, Enter/Space speak, and the menu items are native buttons so Tab works. Roving arrow-key focus inside the menu is still missing.
+- **Custom image upload** (M) — **done**: `.dshchar` import/export, activate, delete and Rescan live in Settings → Status widget → Character and in the right-click Character submenu; the host routes own validation and storage.
+- **Keyboard access** (S) — **done**: the widget is focusable, Shift+F10 opens the menu and moves focus to its first row, Enter/Space speak, and arrows/Home/End walk each menu panel (ArrowRight enters a submenu, ArrowLeft returns).
 - **Today's spend** (L) — requires session-log accounting. Its own project, not a slice; do not start it casually.
 - **Tail/offset tuning** (XS) — the bubble overhangs her at Max size; needs a look on a real screen. Docking now pins her to the edge with the bubble growing inward, which removes the worst of it.
 
 ### Data correctness
 
-- **2027 holidays** (S, deadline) — fetch the notice, add spans to both plugins, the coverage test goes green.
+- **2027 holidays** (S, deadline) — **provisional**: both tables carry the fixed lunar dates and a `PROVISIONAL_YEARS` marker; the tooltip and the coverage test say the State Council notice is still pending. Replace the spans when it lands.
 - **ETag on the balance route** (XS) — **done** — it sends `no-store`, so every poll is a full request. Cheap win, same pattern as the mascot route.
-- **Schedule changes** (S) — **documented**: both copies now cite the pricing page as the source of truth and name the parity test that enforces agreement.
+- **Schedule changes** (S) — **documented**: both copies cite the pricing page as the source of truth and name the parity test, which now drives 2026-2027.
 
 ### Repo and tooling
 
 - **Decide `rate-hours`' fate** (S) — **decided**: keep it as the schedule reference and a re-enablable composer variant; its README says so.
-- **Interaction tests** (M) — drag, menu and click have no automated coverage: they need a DOM the current dependency-free suite does not have. Either extract the interaction logic into testable functions (preferred) or add jsdom.
+- **Interaction tests** (M) — **done**: drag start/move/release, the four release outcomes, menu navigation and submenu transitions were extracted into pure functions and are driven by `test/interaction.test.mjs`; no jsdom was added.
 - **Publish path** (S) — nothing is published; when that changes, `private: true` comes off and the build question returns (a TypeScript client half would need one).
 
 ## Parked on purpose

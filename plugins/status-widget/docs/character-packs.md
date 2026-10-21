@@ -39,8 +39,8 @@ One format for both would be worse: a directory is what an artist works in, and 
 | `license` | no | SPDX identifier, e.g. `MIT` |
 | `homepage` | no | URL for attribution |
 | `poses` | yes | `idle` required; `happy`, `busy`, `worried` optional |
-| `anchor` | no | `feet` (default), `center`, `head` — how the art sits in its box |
-| `scale` | no | 0.5–4, applied on top of the widget's size setting |
+| `anchor` | no | `feet` (default), `center`, `head` — recorded; not applied yet |
+| `scale` | no | 0.5–4 — recorded; not applied yet |
 | `lines` | no | Per-state dialogue overrides: `{ "idle": ["..."], "happy": ["..."] }` |
 | `sheets` | no | Per-state sprite sheets, for motion — see below |
 | `sounds` | no | Per-event audio: `done`, `error`, `alert`, `pat` |
@@ -143,10 +143,11 @@ All under the plugin's existing prefix, all `no-store`, all validating before wr
 | `POST` | `/dsh-status-widget/characters` | Body is a `.dshchar`; validate, then write and report the error codes if refused |
 | `DELETE` | `/dsh-status-widget/characters/<id>` | Remove; clears `active` if it pointed here |
 | `POST` | `/dsh-status-widget/characters/<id>/active` | Switch to this pack |
+| `DELETE` | `/dsh-status-widget/characters/active` | Switch back to the built-in character |
 | `GET` | `/dsh-status-widget/characters/<id>/export` | Produce a `.dshchar` from an installed pack |
 | `GET` | `/dsh-status-widget/character.png?state=busy` | Serve the pose for the active pack; falls back to the built-in art |
-| `GET` | `/dsh-status-widget/character/sheets/<state>.png` | Serve a sprite strip |
-| `GET` | `/dsh-status-widget/character/sounds/<event>` | Serve a pack sound |
+| `GET` | `/dsh-status-widget/character/sheet.png?state=busy` | Serve a sprite strip for that state |
+| `GET` | `/dsh-status-widget/character/sound?event=done` | Serve a pack sound |
 
 The pose route is the hot path and keeps the existing ETag revalidation, so a redrawn pose is not pinned by a stale cache.
 
@@ -156,7 +157,7 @@ The pose route is the hot path and keeps the existing ETag revalidation, so a re
 
 ## Import and export
 
-Both are implemented. The Settings panel has **Import .dshchar**, a per-pack **Use** / **Delete**, and **Use built-in**; the host routes do the work, so `curl` is an equally valid client:
+Both are implemented. Settings → Status widget → Character has **Import .dshchar**, **Use built-in**, **Rescan**, and a per-pack **Use** / **Export** / **Delete**; the host routes do the work, so `curl` is an equally valid client:
 
 ```sh
 curl -X POST localhost:3080/dsh-status-widget/characters \
@@ -206,7 +207,6 @@ A breaking change — a renamed field, a changed meaning for `anchor` — bumps 
 
 ## Not in this version
 
-- Per-pack dialogue translations. `lines` overrides are per state, in whatever language the author wrote.
-- Pack-level `anchor`/`scale` are recorded but the renderer applies `scale` only; anchor alignment is still the stance-centred crop the built-in art uses.
+- Per-pack dialogue translations. `lines` overrides are applied as written, but there is no translation layer: the author's language is the language.
+- Pack-level `anchor`/`scale` are recorded but not yet applied; the renderer uses the stance-centred crop at the widget's size.
 - Remote packs by URL, for the SSRF reason above.
-- Per-pack dialogue translations. `lines` overrides are per state, in whatever language the author wrote.

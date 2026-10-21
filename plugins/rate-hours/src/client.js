@@ -55,8 +55,9 @@
 			 * they fall on Saturdays and Sundays, which stay off-peak.
 			 *
 			 * A year absent from this table is not guessed at; the badge says so in
-			 * its tooltip and falls back to the weekday rule. Add the next year's
-			 * notice here when it is published.
+			 * its tooltip and falls back to the weekday rule. 2027 is present as a
+			 * forecast and flagged in PROVISIONAL_YEARS; replace its spans when the
+			 * State Council notice is published.
 			 */
 			var HOLIDAYS = {
 				2026: [
@@ -68,7 +69,27 @@
 					['2026-09-25', '2026-09-27'], // Mid-Autumn
 					['2026-10-01', '2026-10-07'], // National Day
 				],
+				2027: [
+					['2027-01-01', '2027-01-03'], // New Year
+					['2027-02-05', '2027-02-13'], // Spring Festival, from New Year's Eve
+					['2027-04-03', '2027-04-05'], // Qingming
+					['2027-05-01', '2027-05-05'], // Labour Day
+					['2027-06-09', '2027-06-09'], // Dragon Boat, a Wednesday
+					['2027-09-15', '2027-09-15'], // Mid-Autumn, a Wednesday
+					['2027-10-01', '2027-10-07'], // National Day
+				],
 			}
+
+			/**
+			 * Years whose spans are inferred, not published.
+			 *
+			 * The State Council publishes the next year's arrangement in early
+			 * November; the 2027 notice is not out yet. These dates follow the fixed
+			 * lunar calendar and the 2025 holiday regulation, but a 调休 bridge day
+			 * can still move. The tooltip says so rather than presenting a forecast
+			 * as a notice.
+			 */
+			var PROVISIONAL_YEARS = { 2027: true }
 
 			/** Minute of the UTC day, 0..1439. */
 			function utcMinuteOfDay(ms) {
@@ -104,6 +125,11 @@
 			/** Whether the holiday table covers the year `dateKey` falls in. */
 			function holidayDataKnown(dateKey) {
 				return Object.prototype.hasOwnProperty.call(HOLIDAYS, dateKey.slice(0, 4))
+			}
+
+			/** Whether the year's spans are a forecast rather than a notice. */
+			function holidayDataProvisional(dateKey) {
+				return PROVISIONAL_YEARS[dateKey.slice(0, 4)] === true
 			}
 
 			/**
@@ -176,6 +202,7 @@
 				var day = utcDay(nowMs)
 				var weekend = day === 0 || day === 6
 				var known = holidayDataKnown(dateKey)
+				var provisional = holidayDataProvisional(dateKey)
 				var next = nextTransition(nowMs)
 
 				var label
@@ -195,6 +222,7 @@
 				]
 				if (next !== null) lines.push((next.toPeak ? 'Peak' : 'Off-peak') + ' begins ' + utcStamp(next.at) + '.')
 				if (span !== undefined && !peak) lines.push('Chinese public holiday (' + span[0] + ' to ' + span[1] + ').')
+				if (provisional) lines.push(dateKey.slice(0, 4) + ' holiday dates are provisional — the State Council notice is due in November 2026.')
 				if (!known) lines.push('No holiday table for ' + dateKey.slice(0, 4) + ' — weekday rule only.')
 				lines.push('Computed from this browser clock, not the Host.')
 
@@ -203,6 +231,7 @@
 					weekend: weekend,
 					holiday: span !== undefined,
 					holidayKnown: known,
+					holidayProvisional: provisional,
 					label: label,
 					countdown: countdown,
 					text: countdown === '' ? label : label + ' · ' + countdown,
@@ -290,10 +319,12 @@
 			exports.__schedule = {
 				PEAK_BLOCKS: PEAK_BLOCKS,
 				HOLIDAYS: HOLIDAYS,
+				PROVISIONAL_YEARS: PROVISIONAL_YEARS,
 				isPeak: isPeak,
 				beijingDate: beijingDate,
 				holidaySpan: holidaySpan,
 				holidayDataKnown: holidayDataKnown,
+				holidayDataProvisional: holidayDataProvisional,
 				nextTransition: nextTransition,
 				runStart: runStart,
 				formatDuration: formatDuration,

@@ -42,7 +42,7 @@ Every known gap in this plugin, in one place. Grouped by area, not by priority. 
 - [x] Peak-boundary announcement — edge-detected, spoken once per flip
 - [x] Per-turn cost from the `tokenUsage` projection — turn-start baseline, delta at turn end, priced at the current rate class
 - [x] Low-balance warning — threshold pref, once an hour
-- [ ] Custom character upload
+- [x] Custom character upload — import/export/activate/delete/rescan in Settings and the Character submenu
 - [x] Head pat, edge roaming, idle acts, cross-tab sync, arrow-key menu nav
 - [ ] Quiet mode, copy-balance-on-click, four-edge snapping, notification when the tab is hidden
 - [~] Today's spend, provider matrix, per-module styling, detached desktop window — deliberately out of scope, with reasons in the research note
@@ -89,7 +89,7 @@ Every known gap in this plugin, in one place. Grouped by area, not by priority. 
 - [x] Closes on outside click and Escape
 - [x] Submenu flips left near the right edge
 - [x] Keyboard: Shift+F10 opens, Enter speaks
-- [ ] **Arrow-key navigation inside the menu** — Tab works, arrows do not
+- [x] **Arrow-key navigation inside the menu** — arrows/Home/End walk each panel, ArrowRight enters, ArrowLeft returns
 - [x] Menu extracted to `renderMenu(view)`, walked by tests
 - [x] Menu has Size and Reset position; sound lives in Settings
 
@@ -114,7 +114,7 @@ Every known gap in this plugin, in one place. Grouped by area, not by priority. 
 - [x] Host routes: balance, mascot, prefs, ETag, validation
 - [x] Placement maths, drop decision, mascot states
 - [x] Bundle hygiene (duplicate declarations)
-- [ ] No test drives state changes: drag, menu open, submenu, click-to-speak are all reasoned, never executed
+- [x] Drag, release outcomes, menu navigation and submenus are driven by `test/interaction.test.mjs` through extracted pure functions
 - [ ] No browser test at all; every visual bug so far was found by you, not CI
 
 **Packaging and docs**

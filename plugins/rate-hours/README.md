@@ -33,19 +33,21 @@ Older write-ups describe a single `16:30–00:30 UTC` off-peak window. That is o
 
 The holiday spans live in `HOLIDAYS` in `src/client.js`, keyed by year, in **Beijing calendar dates**. 2026 comes from the State Council notice [国办发明电〔2025〕7号](https://www.gov.cn/zhengce/content/202511/content_7047090.htm):
 
-| Holiday | Span |
-| --- | --- |
-| New Year | 2026-01-01 – 01-03 |
-| Spring Festival | 2026-02-15 – 02-23 |
-| Qingming | 2026-04-04 – 04-06 |
-| Labour Day | 2026-05-01 – 05-05 |
-| Dragon Boat | 2026-06-19 – 06-21 |
-| Mid-Autumn | 2026-09-25 – 09-27 |
-| National Day | 2026-10-01 – 10-07 |
+| Holiday | 2026 (published) | 2027 (provisional) |
+| --- | --- | --- |
+| New Year | 01-01 – 01-03 | 01-01 – 01-03 |
+| Spring Festival | 02-15 – 02-23 | 02-05 – 02-13 |
+| Qingming | 04-04 – 04-06 | 04-03 – 04-05 |
+| Labour Day | 05-01 – 05-05 | 05-01 – 05-05 |
+| Dragon Boat | 06-19 – 06-21 | 06-09 |
+| Mid-Autumn | 09-25 – 09-27 | 09-15 |
+| National Day | 10-01 – 10-07 | 10-01 – 10-07 |
 
 The 调休 makeup workdays (Jan 4, Feb 14, Feb 28, May 9, Sep 20, Oct 10 in 2026) are deliberately **not** listed: they are Saturdays and Sundays, which are off-peak regardless.
 
-A year with no entry is not guessed at. The badge keeps working on the weekday rule and says `No holiday table for <year> — weekday rule only` in its tooltip. Add the next year's notice to `HOLIDAYS` when it is published; nothing else changes. The tests walk every span and check that each weekday inside it prices as off-peak, so a typo fails loudly instead of quietly mis-pricing a day.
+**2027 is a forecast, not a notice.** The State Council publishes the next year's arrangement in early November; until the 2027 notice lands, the table follows the fixed lunar dates and the 2025 regulation. The tooltip says the dates are provisional, and `PROVISIONAL_YEARS` marks the year so the coverage test reports it as a forecast instead of a published notice. Replace its spans when the notice arrives.
+
+A year with no entry is not guessed at. The badge keeps working on the weekday rule and says `No holiday table for <year> — weekday rule only` in its tooltip. The tests walk every span and check that each weekday inside it prices as off-peak, so a typo fails loudly instead of quietly mis-pricing a day.
 
 ## Install
 
@@ -77,6 +79,6 @@ node test/schedule.test.mjs
 
 The tests need no dependencies, so they run straight from a checkout. (`pnpm --filter dsh-rate-hours test` also works once the workspace has been installed; the plugin's only dependency is a `cordis` devDependency for editor typings, and `import type` is erased at runtime.)
 
-26 checks, no Harness runtime needed: the loader handshake (bundle registers under the right id, exports `apply`/`inject` rather than a factory, registers into `conversation.input.left`), every peak edge, the gap between blocks, weekends, holidays, the weekday after a holiday, Beijing-date rollover at 16:00 UTC, an unknown year, transition correctness across a full week, and the component's element tree.
+27 checks, no Harness runtime needed: the loader handshake (bundle registers under the right id, exports `apply`/`inject` rather than a factory, registers into `conversation.input.left`), every peak edge, the gap between blocks, weekends, holidays, the weekday after a holiday, Beijing-date rollover at 16:00 UTC, a provisional 2027, an unknown year, transition correctness across a full week, and the component's element tree.
 
 The component is rendered against a React stub, not real React: the browser shell ships its own React bundle, so there is no React on disk for an SSR render in this workspace.

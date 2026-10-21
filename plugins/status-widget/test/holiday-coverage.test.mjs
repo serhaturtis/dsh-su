@@ -6,9 +6,10 @@
  * test does not validate the dates (the schedule tests walk every span); it
  * validates that the *year we are living in* is covered at all.
  *
- * It is deliberately time-dependent. On 2027-01-01 it fails, which is the point:
- * the table has to be extended before the year it describes begins, and a
- * failing suite is a better reminder than a stale tooltip nobody reads.
+ * It is deliberately time-dependent: an uncovered current year fails, because
+ * the table has to be extended before the year it describes begins. A year
+ * whose notice is not out yet may be present as a forecast, but that is called
+ * out as a note — presence alone must not look like a published notice.
  */
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -49,10 +50,27 @@ console.log(`\nholiday coverage (Beijing year ${year})`)
 for (const [name, schedule] of plugins) {
 	const years = Object.keys(schedule.HOLIDAYS).sort()
 	const covered = Object.prototype.hasOwnProperty.call(schedule.HOLIDAYS, String(year))
-	console.log(`  ${covered ? 'ok  ' : 'FAIL'} ${name}: table covers ${years.join(', ') || 'nothing'}${covered ? '' : ` — missing ${year}`}`)
-	if (covered) continue
+	const provisional = schedule.PROVISIONAL_YEARS?.[year] === true
+	console.log(
+		`  ${covered ? 'ok  ' : 'FAIL'} ${name}: table covers ${years.join(', ') || 'nothing'}${covered ? (provisional ? ' (provisional)' : '') : ` — missing ${year}`}`,
+	)
+	if (covered) {
+		if (provisional) {
+			console.log(`       ${year} is inferred, not published — replace its spans when the State Council notice lands`)
+		}
+		continue
+	}
 	failures++
 	console.log(`       add the ${year} State Council notice to HOLIDAYS in plugins/${name}/src/client.js`)
+}
+
+// A forecast is not a notice. Say which years are still waiting for one.
+for (const [name, schedule] of plugins) {
+	for (const y of Object.keys(schedule.HOLIDAYS).sort()) {
+		if (schedule.PROVISIONAL_YEARS?.[y] === true) {
+			console.log(`  note ${name}: ${y} spans are a forecast — replace them when the State Council notice lands`)
+		}
+	}
 }
 
 // Not a failure yet, but worth saying out loud: next year's notice is usually

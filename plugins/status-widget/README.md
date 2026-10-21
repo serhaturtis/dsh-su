@@ -27,7 +27,7 @@ This is the feature set of the popular whale widget, built as an ordinary DSH pl
 - **Balance** comes from [`GET /user/balance`](https://api-docs.deepseek.com/api/get-user-balance), read by the host half with the key from the credential store and served to the browser as amounts only. The key never reaches the page. Amounts pass through as the decimal strings the API returns — no float arithmetic on money.
 - **The reading is cached for 60 seconds** in the host, so a page left open for an hour costs one request per minute, and concurrent tabs share one read.
 - **Failures are named, not blank**: `no API key`, or `balance ?` for a rejected key or a network problem, each explained in the tooltip. Polling continues once a minute, so a fixed key recovers without a reload.
-- **The rate line** follows the same rule as [`rate-hours`](../rate-hours/README.md): peak `01:00–04:00` and `06:00–10:00` UTC, Mon–Fri, excluding Chinese public holidays, which are off-peak all day.
+- **The rate line** follows the same rule as [`rate-hours`](../rate-hours/README.md): peak `01:00–04:00` and `06:00–10:00` UTC, Mon–Fri, excluding Chinese public holidays, which are off-peak all day. The 2027 spans are provisional until the State Council notice lands; the tooltip says so.
 
 The mascot — a cat in the corner that reacts to turns, rate changes and a low balance — is replaceable; the format is in [`docs/character-packs.md`](docs/character-packs.md).
 
@@ -95,7 +95,7 @@ The figure covers **model tokens only**, priced at list rates for the model chos
 - **No usage history or per-day totals.** The whale derives spend from session logs; that is a much larger claim than "what does the account say", and this plugin does not make it.
 - **One product assumption:** the credential is the DeepSeek API key. A profile signed in through the DeepSeek *account* provider has no `DEEPSEEK_API_KEY`, so the card says so instead of reading nothing.
 - **The art is generated, not drawn to the grid.** Judge it at 180 px wide — the size it actually ships. The four states are one generation, so continuity between poses is only as good as the sheet was.
-- **The schedule is duplicated** from `rate-hours` rather than imported: client bundles cannot require each other without a cross-plugin dependency, and either plugin should work alone. [`test/schedule-parity.test.mjs`](test/schedule-parity.test.mjs) drives both copies over every 15-minute sample of 2026 and fails if they diverge.
+- **The schedule is duplicated** from `rate-hours` rather than imported: client bundles cannot require each other without a cross-plugin dependency, and either plugin should work alone. [`test/schedule-parity.test.mjs`](test/schedule-parity.test.mjs) drives both copies over every 15-minute sample of 2026-2027 and fails if they diverge.
 
 ## Feature catalogue
 
@@ -105,9 +105,9 @@ The figure covers **model tokens only**, priced at list rates for the model chos
 
 A standard for replacing the mascot: a directory (`pack.json` + images) or a single shareable `.dshchar` file, with the same manifest in both. Nobody's character art ships with this repository: the format is public, the art is personal. [`examples/README.md`](examples/README.md) walks through authoring one — the smallest valid pack, motion, and the mistakes that produce drifting or cropped frames.
 
-Import, export, activate and delete are live in Settings → Character and over the host routes. The format, its refusals, the storage layout, routes, import/export and versioning rules are specified in [`docs/character-packs.md`](docs/character-packs.md); the rules themselves live in [`src/pack.js`](../src/pack.js) with 16 tests, deliberately free of Node and DOM so the format can be checked without a running Harness.
+Import, export, activate, delete and **Rescan** are live in Settings → Status widget → Character and over the host routes; the right-click Character submenu offers the same switch and import. The format, its refusals, the storage layout, routes, import/export and versioning rules are specified in [`docs/character-packs.md`](docs/character-packs.md); the rules themselves live in [`src/pack.js`](../src/pack.js) with 16 tests, deliberately free of Node and DOM so the format can be checked without a running Harness.
 
-Packs may carry **animated characters** — an animated GIF/WebP, or a sprite sheet with `frames`/`fps` in horizontal, vertical or grid layout — and **their own sounds** per event (`done`, `error`, `alert`, `pat`), which win over the built-in cues. The renderer for both is implemented and tested; only the routes and Settings surface remain.
+Packs may carry **animated characters** — an animated GIF/WebP, or a sprite sheet with `frames`/`fps` in horizontal, vertical or grid layout — and **their own sounds** per event (`done`, `error`, `alert`, `pat`), which win over the built-in cues. The renderer, the per-state routes and the Settings controls are implemented and tested end to end.
 
 ## Research
 
@@ -126,7 +126,10 @@ Every known gap in this plugin — layout, dialogue, a11y, tests, packaging — 
 node test/balance.test.mjs          # normalization, the request, the cache
 node test/host.test.mjs             # route, missing key, throwing store
 node test/client.test.mjs           # bundle handshake, slot, rendered tree
+node test/interaction.test.mjs      # drag, click/pat, menu focus and submenus
 node test/character.test.mjs        # four state drawings, placement maths
+node test/pack.test.mjs             # character-pack format and refusals
+node test/holiday-coverage.test.mjs # the current year has a table (or a forecast)
 node test/schedule-parity.test.mjs  # this widget's schedule == rate-hours'
 ```
 

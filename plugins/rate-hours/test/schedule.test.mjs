@@ -152,12 +152,24 @@ test('Beijing dates roll at 16:00 UTC', () => {
 	assert.equal(schedule.beijingDate(at('2026-09-30T17:00:00Z')), '2026-10-01')
 	assert.equal(schedule.beijingDate(at('2026-10-31T16:00:00Z')), '2026-11-01')
 })
-test('an unknown year falls back to the weekday rule and says so', () => {
-	assert.equal(schedule.holidayDataKnown('2027-10-05'), false)
+test('2027 is covered, but marked provisional rather than published', () => {
+	assert.equal(schedule.holidayDataKnown('2027-10-05'), true)
+	assert.equal(schedule.holidayDataProvisional('2027-10-05'), true)
 	const status = schedule.describe(at('2027-10-05T02:00:00Z'))
+	assert.equal(status.holiday, true, 'National Day is in the 2027 table')
+	assert.equal(status.holidayKnown, true)
+	assert.equal(status.holidayProvisional, true)
+	assert.match(status.title, /2027 holiday dates are provisional/)
+	assert.equal(schedule.holidayDataProvisional('2026-10-05'), false, 'the 2026 notice is published')
+})
+
+test('an unknown year falls back to the weekday rule and says so', () => {
+	assert.equal(schedule.holidayDataKnown('2028-10-05'), false)
+	const status = schedule.describe(at('2028-10-05T02:00:00Z'))
 	assert.equal(status.holiday, false)
 	assert.equal(status.holidayKnown, false)
-	assert.match(status.title, /No holiday table for 2027/)
+	assert.equal(status.holidayProvisional, false)
+	assert.match(status.title, /No holiday table for 2028/)
 })
 
 console.log('\nschedule: transitions')

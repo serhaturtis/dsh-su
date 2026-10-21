@@ -68,9 +68,10 @@
 			]
 
 			/**
-			 * Chinese public holiday spans, inclusive, in Beijing dates. Source:
-			 * State Council notice 国办发明电〔2025〕7号 (2025-11-04). Peak is
-			 * weekdays 01:00-04:00 and 06:00-10:00 UTC excluding these days.
+			 * Chinese public holiday spans, inclusive, in Beijing dates. 2026 comes
+			 * from State Council notice 国办发明电〔2025〕7号 (2025-11-04); 2027 is a
+			 * forecast until its notice lands. Peak is weekdays 01:00-04:00 and
+			 * 06:00-10:00 UTC excluding these days.
 			 */
 			var HOLIDAYS = {
 				2026: [
@@ -82,7 +83,27 @@
 					['2026-09-25', '2026-09-27'],
 					['2026-10-01', '2026-10-07'],
 				],
+				2027: [
+					['2027-01-01', '2027-01-03'], // New Year
+					['2027-02-05', '2027-02-13'], // Spring Festival, from New Year's Eve
+					['2027-04-03', '2027-04-05'], // Qingming
+					['2027-05-01', '2027-05-05'], // Labour Day
+					['2027-06-09', '2027-06-09'], // Dragon Boat, a Wednesday
+					['2027-09-15', '2027-09-15'], // Mid-Autumn, a Wednesday
+					['2027-10-01', '2027-10-07'], // National Day
+				],
 			}
+
+			/**
+			 * Years whose spans are inferred, not published.
+			 *
+			 * The State Council notice for 2027 is due in early November 2026. The
+			 * dates below follow the fixed lunar calendar and the 2025 holiday
+			 * regulation, but the 调休 arrangement can still move a bridge day. The
+			 * badge keeps saying "holiday" only because DeepSeek's rule is the
+			 * official span; the tooltip must admit which part is a forecast.
+			 */
+			var PROVISIONAL_YEARS = { 2027: true }
 
 			function utcMinuteOfDay(ms) {
 				var d = new Date(ms)
@@ -108,6 +129,11 @@
 
 			function holidayDataKnown(dateKey) {
 				return Object.prototype.hasOwnProperty.call(HOLIDAYS, dateKey.slice(0, 4))
+			}
+
+			/** Whether the year's spans are a forecast rather than a notice. */
+			function holidayDataProvisional(dateKey) {
+				return PROVISIONAL_YEARS[dateKey.slice(0, 4)] === true
 			}
 
 			function isPeak(ms) {
@@ -153,6 +179,7 @@
 				var day = utcDay(nowMs)
 				var weekend = day === 0 || day === 6
 				var known = holidayDataKnown(dateKey)
+				var provisional = holidayDataProvisional(dateKey)
 				var next = nextTransition(nowMs)
 
 				var label
@@ -170,6 +197,7 @@
 				]
 				if (next !== null) lines.push((next.toPeak ? 'Peak' : 'Off-peak') + ' begins ' + utcStamp(next.at) + '.')
 				if (span !== undefined && !peak) lines.push('Chinese public holiday (' + span[0] + ' to ' + span[1] + ').')
+				if (provisional) lines.push(dateKey.slice(0, 4) + ' holiday dates are provisional — the State Council notice is due in November 2026.')
 				if (!known) lines.push('No holiday table for ' + dateKey.slice(0, 4) + ' — weekday rule only.')
 
 				return {
@@ -177,6 +205,7 @@
 					weekend: weekend,
 					holiday: span !== undefined,
 					holidayKnown: known,
+					holidayProvisional: provisional,
 					label: label,
 					countdown: countdown,
 					text: countdown === '' ? label : label + ' · ' + countdown,
@@ -270,12 +299,29 @@
 			var lineLast = {}
 
 			/**
+			 * A pack's own script for a state, or null for the built-in one.
+			 *
+			 * `lines` is part of the pack manifest and is validated by `pack.js`;
+			 * this is the one place the renderer has to honour it. An empty or
+			 * malformed array falls back rather than saying nothing.
+			 */
+			function packLines(state) {
+				if (activePack === null || activePack === undefined || activePack.manifest === null || typeof activePack.manifest !== 'object') return null
+				var lines = activePack.manifest.lines
+				if (lines === null || typeof lines !== 'object') return null
+				var script = lines[state]
+				if (!Array.isArray(script) || script.length === 0) return null
+				for (var i = 0; i < script.length; i++) if (typeof script[i] !== 'string' || script[i].length === 0) return null
+				return script
+			}
+
+			/**
 			 * The next line for a state, cycling through its script and never
 			 * repeating the previous one — a two-line script would otherwise say
 			 * the same thing twice in a row whenever the cursor wrapped.
 			 */
 			function nextLine(state) {
-				var script = LINES[state] === undefined ? LINES.idle : LINES[state]
+				var script = packLines(state) || (LINES[state] === undefined ? LINES.idle : LINES[state])
 				var index = (lineCursor[state] === undefined ? 0 : lineCursor[state]) % script.length
 				var line = script[index]
 				if (script.length > 1 && line === lineLast[state]) {
@@ -543,6 +589,96 @@
 				}
 			}
 
+			/**
+			 * The drag gesture, split into three pure steps.
+			 *
+			 * These lived only as closures inside the component, so the four
+			 * outcomes a press can have — move, pat, speak, press a control — were
+			 * reasoned about but never executed by a test. The component now wires
+			 * them to pointer events; the decisions are here, where a test can call
+			 * them with a fake event.
+			 */
+			function dragStart(event, rect) {
+				var target = event.target
+				var onControl =
+					typeof target === 'object' && target !== null && typeof target.closest === 'function' && target.closest('button') !== null
+				return {
+					pointerId: event.pointerId,
+					x: event.clientX,
+					y: event.clientY,
+					offsetX: rect === null ? 0 : event.clientX - rect.left,
+					offsetY: rect === null ? 0 : event.clientY - rect.top,
+					rectHeight: rect === null ? 0 : rect.height,
+					moved: false,
+					spot: null,
+					onControl: onControl,
+				}
+			}
+
+			/** The geometry a drag needs, from the widget's current state. */
+			function dragContextFor(placement, size, aspect) {
+				return {
+					box: characterBox(size, aspect),
+					inset: (FRAME_WIDTH - size.width) / 2,
+					viewport: viewportSize(),
+					dockedNow: placement.mode === 'docked',
+					dockedSide: placement.side,
+					characterHeight: characterBox(size, aspect).height,
+				}
+			}
+
+			/** Whether the pointer has travelled far enough to be a drag, not a click. */
+			function dragMoved(drag, event) {
+				var dx = event.clientX - drag.x
+				var dy = event.clientY - drag.y
+				return drag.moved || Math.abs(dx) + Math.abs(dy) > CLICK_SLOP
+			}
+
+			/**
+			 * Apply one pointer movement. Returns the next drag state and the
+			 * placement the preview should show (null before the click threshold).
+			 */
+			function dragMove(drag, event, context) {
+				var next = Object.assign({}, drag, { moved: dragMoved(drag, event) })
+				if (!next.moved) return { drag: next, spot: null }
+				next.spot = dropTarget({
+					pointerX: event.clientX,
+					pointerY: event.clientY,
+					offsetX: next.offsetX,
+					offsetY: next.offsetY,
+					box: context.box,
+					inset: context.inset,
+					viewport: context.viewport,
+					dockedNow: context.dockedNow,
+					dockedSide: context.dockedSide,
+				})
+				return { drag: next, spot: next.spot }
+			}
+
+			/**
+			 * What a release means. The spot is re-decided here, not reused from the
+			 * last move, because a fast flick can release somewhere no move sampled.
+			 */
+			function dragRelease(drag, event, context) {
+				var spot = drag.moved
+					? dropTarget({
+							pointerX: event.clientX,
+							pointerY: event.clientY,
+							offsetX: drag.offsetX,
+							offsetY: drag.offsetY,
+							box: context.box,
+							inset: context.inset,
+							viewport: context.viewport,
+							dockedNow: context.dockedNow,
+							dockedSide: context.dockedSide,
+						})
+					: null
+				if (drag.moved && spot !== null) return { kind: 'move', spot: spot }
+				if (drag.onControl) return { kind: 'control' }
+				if (isPatZone(drag.offsetY, drag.rectHeight, context.characterHeight)) return { kind: 'pat' }
+				return { kind: 'speak' }
+			}
+
 			/** Stored placement, repaired against the current viewport. */
 			function resolvePlacement(stored, viewport, element) {
 				var valid = stored !== null && typeof stored === 'object'
@@ -615,7 +751,10 @@
 					'@keyframes dshsw-hop{0%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}' +
 				'.dshsw-still[data-state="busy"]{animation-duration:1.1s}' +
 				'.dshsw-still[data-state="happy"]{animation:dshsw-hop .55s ease-in-out 3}' +
-				'@media (prefers-reduced-motion: reduce){.dshsw-still{animation:none}}'
+				'@media (prefers-reduced-motion: reduce){.dshsw-still{animation:none}}' +
+				// The menu moves real focus, so the ring follows focus rather than a
+				// piece of state that only coloured one submenu.
+				'.dshsw-menu button:focus-visible{outline:2px solid rgba(127,127,127,0.8);outline-offset:-2px}'
 				document.head.appendChild(style)
 			}
 
@@ -760,6 +899,15 @@
 				})
 				document.body.appendChild(input)
 				input.click()
+			}
+
+			/** The route and filename for exporting an installed pack. */
+			function packExportHref(id) {
+				return PACK_BASE + '/characters/' + encodeURIComponent(id) + '/export'
+			}
+
+			function packDownloadName(id) {
+				return id + '.dshchar'
 			}
 
 			/** Switch to a pack id, or to the built-in character when id is null. */
@@ -1545,6 +1693,8 @@
 			//#endregion
 
 			function patLine(index) {
+				var script = packLines('pat')
+				if (script !== null) return script[index % script.length]
 				return t('pat.' + (index % 4))
 			}
 			var patCount = 0
@@ -1552,6 +1702,15 @@
 
 			/** In-flight drag. Module scope, not React state: it must survive renders. */
 			var drag = null
+
+			/** The mounted menu element, so keyboard open can move focus into it. */
+			var menuRoot = null
+
+			function focusFirstMenuItem() {
+				if (menuRoot === null || typeof menuRoot.querySelector !== 'function') return
+				var first = directMenuButtons(menuRoot)[0]
+				if (first !== undefined && typeof first.focus === 'function') first.focus()
+			}
 
 			/**
 			 * The right-click menu, as a pure function of its state.
@@ -1583,6 +1742,47 @@
 				if (want === 'size') return { sizeOpen: current.sizeOpen !== true, characterOpen: false }
 				if (want === 'character') return { sizeOpen: false, characterOpen: current.characterOpen !== true }
 				return { sizeOpen: false, characterOpen: false }
+			}
+
+			/**
+			 * Roving-focus arithmetic for the menu.
+			 *
+			 * The menu is a set of real buttons, so the browser owns focus; this only
+			 * says which sibling should receive it. `-1` means "focus is not on a row
+			 * yet", which happens when the menu is opened with Shift+F10.
+			 */
+			function menuStep(key, index, count) {
+				if (count <= 0) return 0
+				var current = index >= 0 && index < count ? index : -1
+				if (key === 'ArrowDown') return current < 0 ? 0 : (current + 1) % count
+				if (key === 'ArrowUp') return current < 0 ? count - 1 : (current - 1 + count) % count
+				if (key === 'Home') return 0
+				if (key === 'End') return count - 1
+				return current
+			}
+
+			/**
+			 * What a key does in the menu, independent of the DOM.
+			 *
+			 * Enter and Space are deliberately absent: they activate a focused
+			 * button natively, and intercepting them would press it twice.
+			 */
+			function menuAction(key, options) {
+				if (key === 'Escape') return 'close'
+				if (key === 'ArrowRight') return options.hasPopup === true ? 'open-submenu' : 'none'
+				if (key === 'ArrowLeft') return options.nested === true ? 'back' : 'none'
+				if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') return 'focus'
+				return 'none'
+			}
+
+			/** Direct button children of a menu panel; nested panels are skipped. */
+			function directMenuButtons(panel) {
+				var buttons = []
+				if (panel === null || panel === undefined || panel.children === undefined) return buttons
+				for (var i = 0; i < panel.children.length; i++) {
+					if (panel.children[i].tagName === 'BUTTON') buttons.push(panel.children[i])
+				}
+				return buttons
 			}
 
 			/**
@@ -1640,11 +1840,12 @@
 										view.leftward ? { right: '100%', marginRight: '4px' } : { left: '100%', marginLeft: '4px' },
 									),
 									role: 'menu',
+									'data-dshsw-panel': 'size',
 									onPointerDown: function (event) {
 										event.stopPropagation()
 									},
 								},
-								SIZES.map(function (option, index) {
+								SIZES.map(function (option) {
 									var checked = view.current === option.id
 									return React.createElement(
 										'button',
@@ -1656,12 +1857,7 @@
 											onClick: function () {
 												view.onChoose(option.id)
 											},
-											style: Object.assign(
-												{},
-												menuItemStyle,
-												checked ? menuItemActiveStyle : null,
-												view.focusIndex === index ? menuItemFocusStyle : null,
-											),
+											style: Object.assign({}, menuItemStyle, checked ? menuItemActiveStyle : null),
 										},
 										(checked ? '\u25CF ' : '   ') + option.label,
 									)
@@ -1681,6 +1877,7 @@
 										view.leftward ? { right: '100%', marginRight: '4px' } : { left: '100%', marginLeft: '4px' },
 									),
 									role: 'menu',
+									'data-dshsw-panel': 'character',
 									onPointerDown: function (event) {
 										event.stopPropagation()
 									},
@@ -1737,6 +1934,7 @@
 										view.leftward ? { right: '100%', marginRight: '4px', top: '0px' } : { left: '100%', marginLeft: '4px', top: '0px' },
 									),
 									role: 'menu',
+									'data-dshsw-panel': 'settings',
 									onPointerDown: function (event) {
 										event.stopPropagation()
 									},
@@ -1744,6 +1942,8 @@
 								item(t('menu.size') + '  ' + sizeLabel() + '  \u25B8', {
 									role: 'menuitem',
 									'aria-haspopup': 'true',
+									'data-dshsw-toggle': 'size',
+									'data-dshsw-submenu': 'size',
 									'aria-expanded': view.sizeOpen === true ? 'true' : 'false',
 									onPointerEnter: function () {
 										if (view.sizeOpen !== true) view.onToggleSize()
@@ -1755,6 +1955,8 @@
 								item(t('menu.character') + '  ' + currentPackLabel() + '  \u25B8', {
 									role: 'menuitem',
 									'aria-haspopup': 'true',
+									'data-dshsw-toggle': 'character',
+									'data-dshsw-submenu': 'character',
 									'aria-expanded': view.characterOpen === true ? 'true' : 'false',
 									onPointerEnter: function () {
 										if (view.characterOpen !== true) view.onToggleCharacter()
@@ -1801,18 +2003,31 @@
 							left: Math.min(view.at.x, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 150) + 'px',
 							top: Math.min(view.at.y, (typeof window !== 'undefined' ? window.innerHeight : 768) - 96) + 'px',
 						}),
+						className: 'dshsw-menu',
 						role: 'menu',
+						ref: function (node) {
+							menuRoot = node
+						},
 						onPointerDown: function (event) {
 							event.stopPropagation()
 						},
 						onContextMenu: function (event) {
 							event.preventDefault()
 						},
-						onKeyDown: view.onKeyDown,
+						// Keep menu keys out of the widget's Enter-to-speak handler:
+						// activating a row must not also make her say a line. Escape is
+						// handled here (menuAction returns "close"), so stopping the
+						// bubble does not lose it.
+						onKeyDown: function (event) {
+							if (typeof event.stopPropagation === 'function') event.stopPropagation()
+							if (typeof view.onKeyDown === 'function') view.onKeyDown(event)
+						},
 					},
 					item(t('menu.settings') + '  \u25B8', {
 						role: 'menuitem',
 						'aria-haspopup': 'true',
+						'data-dshsw-toggle': 'settings',
+						'data-dshsw-submenu': 'settings',
 						'aria-expanded': view.settingsOpen === true ? 'true' : 'false',
 						onPointerEnter: function () {
 							if (view.settingsOpen !== true) view.onToggleSettings()
@@ -1880,10 +2095,6 @@
 				var sub = React.useState(false)
 				var submenuOpen = sub[0]
 				var setSubmenuOpen = sub[1]
-
-				var focus = React.useState(0)
-				var focusIndex = focus[0]
-				var setFocusIndex = focus[1]
 
 				var settingsOpenState = React.useState(false)
 				var settingsOpen = settingsOpenState[0]
@@ -2218,8 +2429,8 @@
 				/**
 				 * Keyboard parity for the pointer gestures: Shift+F10 (or the
 				 * ContextMenu key) opens the menu at the widget, Enter and Space speak.
-				 * The menu's items are real buttons, so Tab and Enter work inside it
-				 * without a roving focus implementation.
+				 * Once the menu is open it owns its keys (onMenuKeyDown), so Enter on a
+				 * row activates that row instead of speaking.
 				 */
 				function onKeyDown(event) {
 					var wantsMenu = event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')
@@ -2228,6 +2439,9 @@
 						var box = typeof event.currentTarget.getBoundingClientRect === 'function' ? event.currentTarget.getBoundingClientRect() : null
 						setSubmenuOpen(false)
 						setMenu({ x: box === null ? 120 : box.right, y: box === null ? 120 : box.top })
+						// Opening from the keyboard should put the caret on a row, not
+						// leave focus on the widget with a menu the user cannot reach.
+						setTimeout(focusFirstMenuItem, 0)
 						return
 					}
 					if (event.key === 'Enter' || event.key === ' ') {
@@ -2236,35 +2450,66 @@
 					}
 				}
 
-				/** Arrow keys move the highlight; Enter picks it; Escape is handled at the document. */
+				/**
+				 * Roving focus over the menu's real buttons.
+				 *
+				 * The old handler moved a `focusIndex` that only coloured a size row,
+				 * and only while the size submenu was open. This walks the panel that
+				 * actually contains the focused button, so arrows work at every level,
+				 * Home/End jump, ArrowRight opens a submenu, and ArrowLeft returns.
+				 */
 				function onMenuKeyDown(event) {
-					if (!sizeOpen) {
-						// Only steal the key when a menu row is not already focused:
-						// Enter on a button must press that button.
-						var onButton = typeof event.target === 'object' && event.target !== null && event.target.tagName === 'BUTTON'
-						if (!onButton && (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowRight')) {
-							event.preventDefault()
-							var next = nextSubmenu({ sizeOpen: sizeOpen, characterOpen: characterOpen }, 'size')
-							setSizeOpen(next.sizeOpen)
-							setCharacterOpen(next.characterOpen)
-							setFocusIndex(SIZES.findIndex(function (option) { return option.id === size.id }))
+					var root = event.currentTarget
+					var active = typeof document !== 'undefined' ? document.activeElement : null
+					var panel =
+						active !== null && active !== undefined && typeof active.closest === 'function' ? active.closest('[role="menu"]') : null
+					if (panel === null || panel === undefined || typeof root.contains !== 'function' || !root.contains(panel)) panel = root
+
+					var buttons = directMenuButtons(panel)
+					var index = buttons.indexOf(active)
+					var hasPopup =
+						active !== null && active !== undefined && typeof active.getAttribute === 'function' && active.getAttribute('aria-haspopup') === 'true'
+					var action = menuAction(event.key, { hasPopup: hasPopup, nested: panel !== root })
+
+					if (action === 'close') {
+						setMenu(null)
+						return
+					}
+					if (action === 'back') {
+						event.preventDefault()
+						var name = typeof panel.getAttribute === 'function' ? panel.getAttribute('data-dshsw-panel') : null
+						var toggle = name === null ? null : root.querySelector('[data-dshsw-toggle="' + name + '"]')
+						if (toggle !== null) {
+							if (typeof toggle.click === 'function') toggle.click()
+							if (typeof toggle.focus === 'function') toggle.focus()
 						}
 						return
 					}
-					if (event.key === 'ArrowDown') {
+					if (action === 'open-submenu') {
 						event.preventDefault()
-						setFocusIndex((focusIndex + 1) % SIZES.length)
+						if (active === null || active === undefined) return
+						var sub = typeof active.getAttribute === 'function' ? active.getAttribute('data-dshsw-submenu') : null
+						// Hover may have opened it already; entering must not toggle it shut.
+						var alreadyOpen = typeof active.getAttribute === 'function' && active.getAttribute('aria-expanded') === 'true'
+						if (alreadyOpen) {
+							var openPanel = sub === null ? null : root.querySelector('[data-dshsw-panel="' + sub + '"]')
+							var openFirst = openPanel === null || openPanel === undefined ? undefined : directMenuButtons(openPanel)[0]
+							if (openFirst !== undefined && typeof openFirst.focus === 'function') openFirst.focus()
+							return
+						}
+						if (typeof active.click === 'function') active.click()
+						setTimeout(function () {
+							var opened = sub === null ? null : root.querySelector('[data-dshsw-panel="' + sub + '"]')
+							if (opened === null || opened === undefined) return
+							var first = directMenuButtons(opened)[0]
+							if (first !== undefined && typeof first.focus === 'function') first.focus()
+						}, 0)
 						return
 					}
-					if (event.key === 'ArrowUp') {
-						event.preventDefault()
-						setFocusIndex((focusIndex - 1 + SIZES.length) % SIZES.length)
-						return
-					}
-					if (event.key === 'Enter' || event.key === ' ') {
-						event.preventDefault()
-						chooseSize(SIZES[focusIndex].id)
-					}
+					if (action !== 'focus') return
+					event.preventDefault()
+					var next = menuStep(event.key, index, buttons.length)
+					if (buttons[next] !== undefined && typeof buttons[next].focus === 'function') buttons[next].focus()
 				}
 
 				function chooseSize(id) {
@@ -2274,22 +2519,14 @@
 					setMenu(null)
 				}
 
+				function currentDragContext() {
+					return dragContextFor(placement, size, artAspect)
+				}
+
 				function onPointerDown(event) {
 					if (event.button !== undefined && event.button !== 0) return
 					var rect = typeof event.currentTarget.getBoundingClientRect === 'function' ? event.currentTarget.getBoundingClientRect() : null
-					drag = {
-						pointerId: event.pointerId,
-						x: event.clientX,
-						y: event.clientY,
-						// Where the pointer sits inside the widget, so the drop keeps
-						// her under the same spot on the body rather than jumping.
-						offsetX: rect === null ? 0 : event.clientX - rect.left,
-						offsetY: rect === null ? 0 : event.clientY - rect.top,
-						rectHeight: rect === null ? 0 : rect.height,
-						moved: false,
-						spot: null,
-						onControl: typeof event.target.closest === 'function' && event.target.closest('button') !== null,
-					}
+					drag = dragStart(event, rect)
 					if (typeof event.currentTarget.setPointerCapture === 'function') {
 						event.currentTarget.setPointerCapture(event.pointerId)
 					}
@@ -2297,49 +2534,19 @@
 
 				function onPointerMove(event) {
 					if (drag === null || event.pointerId !== drag.pointerId) return
-					var dy = event.clientY - drag.y
-					var dx = event.clientX - drag.x
-					if (!drag.moved && Math.abs(dx) + Math.abs(dy) > CLICK_SLOP) drag.moved = true
-					if (!drag.moved) return
-					drag.spot = dropTarget({
-						pointerX: event.clientX,
-						pointerY: event.clientY,
-						offsetX: drag.offsetX,
-						offsetY: drag.offsetY,
-						box: characterBox(size, artAspect),
-						inset: (FRAME_WIDTH - size.width) / 2,
-						viewport: viewportSize(),
-						dockedNow: placement.mode === 'docked',
-						dockedSide: placement.side,
-					})
-					setPlacement(drag.spot)
+					var result = dragMove(drag, event, currentDragContext())
+					drag = result.drag
+					if (result.spot === null) return
+					setPlacement(result.spot)
 					if (typeof event.preventDefault === 'function') event.preventDefault()
 				}
 
 				function onPointerUp(event) {
 					if (drag === null || event.pointerId !== drag.pointerId) return
-					var moved = drag.moved
-					var onControl = drag.onControl
-					// The zone follows the drawing on screen, not a fixed ratio, so a
-					// taller pack pose moves her head down with it.
-					var dragPat = isPatZone(drag.offsetY, drag.rectHeight, characterBox(size, artAspect).height)
-					// Re-decide at the release point: a fast flick can leave the pointer
-					// somewhere the last move event never sampled.
-					var spot = moved
-						? dropTarget({
-								pointerX: event.clientX,
-								pointerY: event.clientY,
-								offsetX: drag.offsetX,
-								offsetY: drag.offsetY,
-								box: characterBox(size, artAspect),
-								inset: (FRAME_WIDTH - size.width) / 2,
-								viewport: viewportSize(),
-								dockedNow: placement.mode === 'docked',
-								dockedSide: placement.side,
-							})
-						: null
+					var outcome = dragRelease(drag, event, currentDragContext())
 					drag = null
-					if (moved && spot !== null) {
+					if (outcome.kind === 'move') {
+						var spot = outcome.spot
 						writePlacement(spot)
 						savePrefs(
 							spot.mode === 'free'
@@ -2348,9 +2555,9 @@
 						)
 						return
 					}
-					if (onControl) return
+					if (outcome.kind === 'control') return
 					// A press on the top third is a head pat; anywhere else is a word.
-					if (dragPat === true) {
+					if (outcome.kind === 'pat') {
 						patCount++
 						setSaid({ text: patLine(patCount), at: Date.now() })
 						patLanded()
@@ -2380,7 +2587,6 @@
 					// The widget was computed this and then threw it away, so the
 					// submenu never actually flipped away from the screen edge.
 					leftward: leftward,
-					focusIndex: focusIndex,
 					current: size.id,
 					onChoose: chooseSize,
 					onKeyDown: onMenuKeyDown,
@@ -2772,12 +2978,6 @@
 				fontWeight: 600,
 			}
 
-			/** Keyboard focus ring, distinct from the selected item. */
-			var menuItemFocusStyle = {
-				outline: '2px solid rgba(127,127,127,0.7)',
-				outlineOffset: '-2px',
-			}
-
 			/** Settings → Status widget: the size control, sharing the widget's store. */
 			function SettingsPanel() {
 				var local = React.useState(currentSize())
@@ -2788,17 +2988,9 @@
 				var low = lowLocal[0]
 				var setLow = lowLocal[1]
 
-				var lowLocal = React.useState(readLow())
-				var lowValue = lowLocal[0]
-				var setLowValue = lowLocal[1]
-
 				var roamLocal = React.useState(readRoam())
 				var roam = roamLocal[0]
 				var setRoam = roamLocal[1]
-
-				var langLocal = React.useState(readLang())
-				var langValue = langLocal[0]
-				var setLangValue = langLocal[1]
 
 				var modelLocal = React.useState(readModel())
 				var model = modelLocal[0]
@@ -2970,21 +3162,11 @@
 						})
 				}
 
+				// The section only owns the pack list. The preference subscriptions
+				// belong to SettingsPanel; keeping a second copy here called setters
+				// that did not exist in this scope, so changing a preference threw.
 				React.useEffect(function () {
 					refresh()
-					var offs = ['model', 'low', 'roam', 'lang'].map(function (key) {
-						return subscribePreference(key, function () {
-							setModel(readModel())
-							setLow(readLow())
-							setRoam(readRoam())
-							setLang(readLang())
-						})
-					})
-					return function () {
-						offs.forEach(function (off) {
-							off()
-						})
-					}
 				}, [])
 
 				function call(method, path, body) {
@@ -3012,18 +3194,16 @@
 				function onFile(event) {
 					var file = event.target.files !== undefined ? event.target.files[0] : undefined
 					if (file === undefined) return
-					var reader = new FileReader()
-					reader.onload = function () {
-						try {
-							call('POST', '/characters', JSON.parse(String(reader.result)))
-						} catch {
-							setNotice('That file is not JSON')
+					// One import path for the menu and Settings: importPackFile reads
+					// the file, validates it and switches to it in one gesture.
+					importPackFile(file).then(function (result) {
+						if (result.ok !== true) {
+							setNotice('Refused: ' + (result.errors || ['import-failed']).join(', '))
+							return
 						}
-					}
-					reader.onerror = function () {
-						resolve({ ok: false, errors: ['read-failed'] })
-					}
-					reader.readAsText(file)
+						setNotice(null)
+						refresh()
+					})
 				}
 
 				return React.createElement(
@@ -3043,6 +3223,16 @@
 								style: chipStyle,
 							},
 							'Use built-in',
+						),
+						React.createElement(
+							'button',
+							{
+								type: 'button',
+								onClick: refresh,
+								title: 'Pick up packs dropped into $DSH_HOME/status-widget/characters',
+								style: chipStyle,
+							},
+							'Rescan',
 						),
 					),
 					state.packs.length === 0
@@ -3066,6 +3256,15 @@
 												style: chipStyle,
 											},
 											'Use',
+										),
+										React.createElement(
+											'a',
+											{
+												href: packExportHref(pack.id),
+												download: packDownloadName(pack.id),
+												style: Object.assign({}, chipStyle, { textDecoration: 'none' }),
+											},
+											'Export',
 										),
 										React.createElement(
 											'button',
@@ -3181,15 +3380,18 @@
 			exports.__schedule = {
 				PEAK_BLOCKS: PEAK_BLOCKS,
 				HOLIDAYS: HOLIDAYS,
+				PROVISIONAL_YEARS: PROVISIONAL_YEARS,
 				isPeak: isPeak,
 				beijingDate: beijingDate,
 				holidaySpan: holidaySpan,
 				holidayDataKnown: holidayDataKnown,
+				holidayDataProvisional: holidayDataProvisional,
 				nextTransition: nextTransition,
 				formatDuration: formatDuration,
 				describe: describe,
 			}
 			exports.SettingsPanel = SettingsPanel
+			exports.CharacterSettings = CharacterSettings
 			exports.renderMenu = renderMenu
 			exports.__dialogue = { LINES: LINES, nextLine: nextLine, LINE_MS: LINE_MS }
 			exports.__prefs = { savePrefs: savePrefs, applySize: applySize, currentSize: currentSize, subscribeSize: subscribeSize }
@@ -3197,6 +3399,14 @@
 			exports.__balance = { formatBalances: formatBalances, readBalance: readBalance, totalsOf: totalsOf, balanceIncreased: balanceIncreased }
 			exports.__prefsWatch = { subscribePreference: subscribePreference }
 			exports.__pat = { isPatZone: isPatZone }
+			exports.__interaction = {
+				dragStart: dragStart,
+				dragMove: dragMove,
+				dragRelease: dragRelease,
+				dragMoved: dragMoved,
+				menuStep: menuStep,
+				menuAction: menuAction,
+			}
 			exports.__packs = {
 				importPackFile: importPackFile,
 				readPacks: readPacks,
@@ -3214,6 +3424,8 @@
 				spriteStyle: spriteStyle,
 				spriteKeyframes: spriteKeyframes,
 				sheetGrid: sheetGrid,
+				packExportHref: packExportHref,
+				packDownloadName: packDownloadName,
 				setPackSound: function (event, url) {
 					if (url === null) delete packSounds[event]
 					else packSounds[event] = url

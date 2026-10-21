@@ -4,8 +4,8 @@
  * cross-plugin dependency, and either plugin alone should work.
  *
  * Duplication is only safe if drift fails loudly. This test loads both bundles,
- * drives their schedules over all of 2026, and fails if they ever disagree —
- * so the next person to fix a peak block in one file is told about the other.
+ * drives their schedules over 2026-2027, and fails if they ever disagree — so
+ * the next person to fix a peak block in one file is told about the other.
  */
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -45,7 +45,7 @@ let mismatches = 0
 const examples = []
 
 const start = Date.UTC(2026, 0, 1)
-const end = Date.UTC(2027, 0, 1)
+const end = Date.UTC(2028, 0, 1)
 for (let t = start; t < end; t += 15 * 60 * 1000) {
 	if (ours.isPeak(t) !== theirs.isPeak(t)) {
 		mismatches++
@@ -56,14 +56,23 @@ for (let t = start; t < end; t += 15 * 60 * 1000) {
 assert.equal(
 	mismatches,
 	0,
-	`isPeak disagrees at ${mismatches} sample(s) across 2026, e.g. ${examples.join(', ')}`,
+	`isPeak disagrees at ${mismatches} sample(s) across 2026-2027, e.g. ${examples.join(', ')}`,
 )
-console.log('  ok   isPeak agrees on every 15-minute sample of 2026')
+console.log('  ok   isPeak agrees on every 15-minute sample of 2026-2027')
 
 assert.deepEqual(ours.HOLIDAYS, theirs.HOLIDAYS)
 console.log('  ok   holiday tables are identical')
 
-for (const iso of ['2026-03-07T02:00:00Z', '2026-10-05T02:00:00Z', '2026-10-13T02:30:00Z', '2026-12-25T09:00:00Z']) {
+for (const iso of [
+	'2026-03-07T02:00:00Z',
+	'2026-10-05T02:00:00Z',
+	'2026-10-13T02:30:00Z',
+	'2026-12-25T09:00:00Z',
+	'2027-02-08T02:00:00Z',
+	'2027-06-09T02:00:00Z',
+	'2027-06-10T02:00:00Z',
+	'2027-10-05T02:00:00Z',
+]) {
 	const t = Date.parse(iso)
 	assert.equal(ours.describe(t).text, theirs.describe(t).text, `descriptions differ at ${iso}`)
 	assert.equal(ours.nextTransition(t)?.at, theirs.nextTransition(t)?.at, `next transition differs at ${iso}`)

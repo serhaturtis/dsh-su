@@ -797,6 +797,31 @@ test('an unknown state still has something to say', () => {
 	assert.ok(exported.__dialogue.nextLine('nonsense').length > 0)
 })
 
+test('a pack can replace the script for a state', () => {
+	const packs = exported.__packs
+	packs.setActivePack({ manifest: { lines: { idle: ['Pack one', 'Pack two'], busy: ['Pack busy'] } } })
+	try {
+		const seen = new Set()
+		for (let i = 0; i < 4; i++) seen.add(exported.__dialogue.nextLine('idle'))
+		assert.deepEqual([...seen].sort(), ['Pack one', 'Pack two'], 'the built-in lines must not leak through')
+		assert.equal(exported.__dialogue.nextLine('busy'), 'Pack busy')
+	} finally {
+		packs.setActivePack(null)
+	}
+})
+
+test('a malformed pack script falls back to the built-in lines', () => {
+	const packs = exported.__packs
+	packs.setActivePack({ manifest: { lines: { idle: [] } } })
+	try {
+		const line = exported.__dialogue.nextLine('idle')
+		assert.ok(line.length > 0, 'an empty script must not produce silence')
+		assert.ok(exported.__dialogue.LINES.idle.includes(line), 'the fallback is the built-in script')
+	} finally {
+		packs.setActivePack(null)
+	}
+})
+
 test('the same line never plays twice in a row', () => {
 	const next = exported.__dialogue.nextLine
 	let previous = next('idle')
@@ -837,6 +862,37 @@ test('the settings panel exists and offers every size', () => {
 	}
 	walk(tree)
 	for (const size of exported.__menu.SIZES) assert.ok(labels.includes(size.label), `missing ${size.label}`)
+})
+
+console.log('\ncharacter settings')
+
+/** Flatten the text nodes of a stub tree. */
+function textOf(tree) {
+	const out = []
+	const walk = (node) => {
+		if (node === null || node === undefined) return
+		if (typeof node === 'string') return out.push(node)
+		if (Array.isArray(node)) return node.forEach(walk)
+		walk(node.props?.children)
+	}
+	walk(tree)
+	return out
+}
+
+test('the character section offers import, built-in, rescan and an empty state', () => {
+	assert.equal(typeof exported.CharacterSettings, 'function')
+	const text = textOf(exported.CharacterSettings())
+	assert.ok(text.includes('Import .dshchar'), 'import is the primary control')
+	assert.ok(text.includes('Use built-in'), 'a pack must be reversible')
+	assert.ok(text.includes('Rescan'), 'a directory dropped into $DSH_HOME needs a refresh')
+	assert.ok(text.includes('No packs installed.'), 'an empty list says so instead of rendering nothing')
+})
+
+test('export points at the host route and names the download', () => {
+	const packs = exported.__packs
+	assert.equal(packs.packExportHref('sample-cat'), '/dsh-status-widget/characters/sample-cat/export')
+	assert.equal(packs.packDownloadName('sample-cat'), 'sample-cat.dshchar')
+	assert.equal(packs.packExportHref('a b'), '/dsh-status-widget/characters/a%20b/export', 'ids are path-encoded')
 })
 
 console.log('\nsize menu')
