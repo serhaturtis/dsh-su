@@ -115,6 +115,26 @@ function resolveSelection(attachments, preset) {
 	return { chosen, codes }
 }
 
+/**
+ * The artwork for one slot in one variant.
+ *
+ * A variant may describe a complete drawing, or only a tint. In the second case
+ * it inherits the base variant's drawing — that is what makes five boot colours
+ * cost one drawing instead of five.
+ */
+function resolveArt(variants, requested, slotName) {
+	const resolved = resolveVariant(variants, requested)
+	if (resolved === undefined) return undefined
+	const art = resolved.art[slotName]
+	if (art === undefined) return undefined
+	if (art.image === undefined && art.tint !== undefined) {
+		const baseName = variants.default !== undefined ? 'default' : Object.keys(variants)[0]
+		const base = variants[baseName]?.[slotName]
+		if (base !== undefined) return { ...base, ...art }
+	}
+	return art
+}
+
 /** Pick the artwork for a variant, defaulting to `default` then the first one. */
 function resolveVariant(variants, requested) {
 	if (variants === undefined || variants === null) return undefined
@@ -241,7 +261,7 @@ export function compileLook({ rig, attachments = [], preset = { attachments: [] 
 
 	const slots = []
 	for (const slot of rig.slots) {
-		const piece = art[slot.name]
+		const piece = resolveArt(rig.bodyVariants, preset.bodyVariant, slot.name)
 		if (piece === undefined) throw new CompileError([`${ERRORS.ART}:${slot.name}`])
 		slots.push({
 			name: slot.name,
@@ -260,7 +280,7 @@ export function compileLook({ rig, attachments = [], preset = { attachments: [] 
 		const resolved = resolveVariant(attachment.variants, variant)
 		if (resolved === undefined) throw new CompileError([`${ERRORS.ART}:${attachment.id}`])
 		for (const slot of attachment.slots ?? []) {
-			const piece = resolved.art[slot.name]
+			const piece = resolveArt(attachment.variants, variant, slot.name)
 			if (piece === undefined) throw new CompileError([`${ERRORS.ART}:${attachment.id}:${slot.name}`])
 			const boneKey = slot.bone === undefined ? frameKeyFor(attachment, byKey, byId) : `attach:${attachment.id}:${slot.bone}`
 			const bone = byKey.get(boneKey)

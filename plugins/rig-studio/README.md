@@ -4,7 +4,7 @@ A 2D skeletal animation runtime for DSH: characters as data — a rig (skeleton 
 
 Design: [`docs/design.md`](docs/design.md).
 
-**Status:** M0 done — the pure core (format, compile, pose, clip, IK, lint) with 77 tests. No renderer yet.
+**Status:** M0 done, M1 core done — the pure engine plus the renderer (with a recording context) and the editor operations, 105 tests. Not yet wired into a canvas: client bundles cannot require relative modules, so that needs a small build step.
 
 The whole design turns on two decisions that are easy to miss:
 
