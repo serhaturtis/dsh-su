@@ -4,7 +4,7 @@ A 2D skeletal animation runtime for DSH: characters as data — a rig (skeleton 
 
 Design: [`docs/design.md`](docs/design.md).
 
-**Status:** design approved, not implemented.
+**Status:** M0 done — the pure core (format, compile, pose, clip, IK, lint) with 77 tests. No renderer yet.
 
 The whole design turns on two decisions that are easy to miss:
 
@@ -17,7 +17,7 @@ Not in v1: mesh deformation, cloth collision, 8-direction art.
 
 | # | Deliverable |
 | --- | --- |
-| M0 | format, compile, solver, clip sampling, IK, lint — every lint code has a test |
+| M0 ✅ | format, compile, solver, clip sampling, IK, lint — every lint code has a test |
 | M1 | canvas renderer and editor (bones, pivots, discs, scrub) |
 | M2 | controller, blending, preset switching |
 | M3 | two-bone IK and foot planting |

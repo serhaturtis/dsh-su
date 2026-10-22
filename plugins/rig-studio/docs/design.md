@@ -2,7 +2,7 @@
 
 A 2D skeletal animation runtime for DSH, and the content format behind it.
 
-Status: **design approved, not implemented.** This document is the contract M0–M7 build against.
+Status: **design approved; M0 implemented.** The engine core (format, compile, pose, clip, IK, lint) and its tests exist in `src/rig/`; there is no renderer yet. This document remains the contract M1–M7 build against.
 
 ---
 
