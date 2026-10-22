@@ -129,11 +129,26 @@ test('past the slop the widget follows the pointer', () => {
 	const moved = interaction.dragMove(drag, pointer({ clientX: 420, clientY: 430 }), context)
 	assert.equal(moved.drag.moved, true)
 	assert.equal(moved.spot.mode, 'free')
-	assert.equal(moved.spot.x, 400, 'pointer 420 minus the 20px grab offset')
-	assert.equal(moved.spot.y, 330)
+	// The placement anchors the drawing, not the frame: 420 - 20 grab offset is
+	// the frame's left, and the drawing starts `inset` further in.
+	assert.equal(moved.spot.x, 420, 'the drawing left edge under the same grab point')
+	// Bottom is her distance from the viewport bottom: the frame's top is 330, it
+	// is 400 tall, and she is the last 367px of it — so her bottom is at 730.
+	assert.equal(moved.spot.bottom, 800 - (330 + 400))
 	const released = interaction.dragRelease(moved.drag, pointer({ clientX: 420, clientY: 430 }), context)
 	assert.equal(released.kind, 'move')
 	assert.deepEqual(released.spot, moved.spot)
+})
+
+test('a free widget is anchored by her bottom, so a taller bubble grows upward', () => {
+	// The bug this pins: the frame used to be anchored by its top edge, so a
+	// bubble that grew with the text pushed the drawing down the screen.
+	const placed = { mode: 'free', x: 300, bottom: 200 }
+	const layout = character.layoutFor(placed, size, menu.ART_RATIO)
+	assert.equal(layout.root.bottom, '200px', 'the anchor is her distance from the viewport bottom')
+	assert.equal(layout.root.top, undefined, 'no top edge to be pushed down from')
+	assert.equal(layout.root.height, undefined, 'the frame sizes to its content, so growth goes away from the anchor')
+	assert.equal(layout.root.position, 'fixed')
 })
 
 test('the release point decides the drop, not the last move event', () => {

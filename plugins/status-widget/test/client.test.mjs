@@ -183,9 +183,12 @@ test('every mode produces its margin explicitly', () => {
 	assert.equal(dockedLeft.root.right, undefined)
 	assert.equal(dockedLeft.character.scale, '-1 1', 'a left-docked widget mirrors her with `scale`, not transform')
 
-	const free = exported.__character.layoutFor({ mode: 'free', x: 300, y: 200 }, size)
-	assert.equal(free.root.left, '300px')
-	assert.equal(free.root.top, '200px')
+	const free = exported.__character.layoutFor({ mode: 'free', x: 300, bottom: 200 }, size)
+	// Free placement stores the drawing's left edge; the frame is 220 wide and the
+	// drawing 180, so the frame starts 20px to the left of it.
+	assert.equal(free.root.left, '280px')
+	assert.equal(free.root.top, undefined, 'a free widget is anchored by its bottom, so a growing bubble cannot push it down')
+	assert.equal(free.root.bottom, '200px')
 	assert.equal(free.root.right, undefined)
 	assert.equal(free.root.alignItems, 'center', 'free centres exactly like docked')
 	// The whole point of the frame: docking must not change the bubble's shape.

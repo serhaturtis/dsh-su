@@ -133,7 +133,10 @@ test('dropping near either edge docks, anywhere else floats', () => {
 	const middle = character.dropTarget({ pointerX: 640, pointerY: 400, ...anchor, box: BOX, viewport })
 	assert.equal(middle.mode, 'free')
 	assert.equal(middle.x, 550, 'the drop point keeps the pointer at the same spot on her body')
-	assert.equal(middle.y, 300)
+	// The placement is anchored on the drawing's bottom edge, so a taller bubble
+	// grows upward instead of pushing her down.
+	assert.equal(middle.bottom, viewport.height - 400 + 100 - BOX.height)
+	assert.equal(middle.y, undefined, 'free placement no longer stores a top edge')
 })
 
 test('a drop near the edge keeps her feet under the pointer', () => {
@@ -148,7 +151,8 @@ test('a drop outside the viewport is clamped, not lost', () => {
 	const viewport = { width: 1280, height: 800 }
 	const drop = character.dropTarget({ pointerX: 640, pointerY: -100, offsetX: 90, offsetY: 50, box: BOX, viewport })
 	assert.equal(drop.mode, 'free')
-	assert.equal(drop.y, 16)
+	// Dropped above the viewport: her bottom is pushed to the lowest legal spot.
+	assert.equal(drop.bottom, viewport.height - BOX.height - 16)
 })
 
 test('hysteresis keeps her docked until she is clearly away', () => {
@@ -176,14 +180,21 @@ test('a docked placement is honoured and clamped', () => {
 })
 
 test('a free placement is honoured and kept inside the viewport', () => {
-	assert.deepEqual(character.resolvePlacement({ mode: 'free', x: 300, y: 200 }, { width: 1280, height: 800 }, BOX), {
+	assert.deepEqual(character.resolvePlacement({ mode: 'free', x: 300, bottom: 200 }, { width: 1280, height: 800 }, BOX), {
 		mode: 'free',
 		x: 300,
-		y: 200,
+		bottom: 200,
 	})
-	const repaired = character.resolvePlacement({ mode: 'free', x: 5000, y: -40 }, { width: 1280, height: 800 }, BOX)
+	const repaired = character.resolvePlacement({ mode: 'free', x: 5000, bottom: -40 }, { width: 1280, height: 800 }, BOX)
 	assert.equal(repaired.x, 1280 - BOX.width - 16)
-	assert.equal(repaired.y, 16)
+	assert.equal(repaired.bottom, 16, 'a placement below the viewport is repaired upward')
+})
+
+test('an older free save with a top edge is converted, not lost', () => {
+	const migrated = character.resolvePlacement({ mode: 'free', x: 300, y: 200 }, { width: 1280, height: 800 }, BOX)
+	assert.equal(migrated.mode, 'free')
+	assert.equal(migrated.x, 300)
+	assert.equal(migrated.bottom, 800 - 200 - BOX.height, 'y was the top edge; bottom is derived from it')
 })
 
 test('an old side+bottom save still docks where it was', () => {

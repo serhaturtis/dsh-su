@@ -507,11 +507,17 @@
 					else if (input.dockedSide === 'right' && left + input.box.width >= input.viewport.width - SNAP_ZONE - SNAP_HYSTERESIS) side = 'right'
 				}
 				if (side === null) {
-					var bounds = freeBounds(input.viewport, input.box, input.inset === undefined ? 0 : input.inset)
+					// Anchor the *drawing*, not the frame's top edge: the bubble grows
+					// upward from her, so a taller bubble cannot push her down. `bottom`
+					// is the drawing's distance from the viewport bottom, `x` its left.
+					var inset = input.inset === undefined ? 0 : input.inset
+					var rootHeight = input.rootHeight === undefined ? input.box.height : input.rootHeight
+					var characterLeft = input.pointerX - input.offsetX + inset
+					var characterBottom = input.viewport.height - input.pointerY + input.offsetY - rootHeight
 					return {
 						mode: 'free',
-						x: clamp(input.pointerX - input.offsetX, bounds.minX, bounds.maxX),
-						y: clamp(input.pointerY - input.offsetY, bounds.minY, bounds.maxY),
+						x: clamp(characterLeft, EDGE, Math.max(EDGE, input.viewport.width - input.box.width - EDGE)),
+						bottom: clamp(characterBottom, EDGE, Math.max(EDGE, input.viewport.height - input.box.height - EDGE)),
 					}
 				}
 				// Docked: keep her feet under the pointer, clamped off the edges.
@@ -585,6 +591,7 @@
 					viewport: context.viewport,
 					dockedNow: context.dockedNow,
 					dockedSide: context.dockedSide,
+					rootHeight: drag.rectHeight,
 				})
 				return { drag: next, spot: next.spot }
 			}
@@ -605,6 +612,7 @@
 							viewport: context.viewport,
 							dockedNow: context.dockedNow,
 							dockedSide: context.dockedSide,
+							rootHeight: drag.rectHeight,
 						})
 					: null
 				if (drag.moved && spot !== null) return { kind: 'move', spot: spot }
@@ -618,12 +626,14 @@
 				var valid = stored !== null && typeof stored === 'object'
 				var width = element.width
 				var height = element.height
-				if (valid && stored.mode === 'free' && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
-					var bounds = freeBounds(viewport, { width: width, height: height }, element.inset === undefined ? 0 : element.inset)
+				if (valid && stored.mode === 'free' && Number.isFinite(stored.x)) {
+					// `bottom` is the new anchor. An older save has `y` (the frame's top
+					// edge); convert it once so a stored position survives the change.
+					var freeBottom = Number.isFinite(stored.bottom) ? stored.bottom : viewport.height - (Number.isFinite(stored.y) ? stored.y : 0) - height
 					return {
 						mode: 'free',
-						x: clamp(stored.x, bounds.minX, bounds.maxX),
-						y: clamp(stored.y, bounds.minY, bounds.maxY),
+						x: clamp(stored.x, EDGE, Math.max(EDGE, viewport.width - width - EDGE)),
+						bottom: clamp(freeBottom, EDGE, Math.max(EDGE, viewport.height - height - EDGE)),
 					}
 				}
 				var side = valid && (stored.side === 'left' || stored.side === 'right') ? stored.side : 'right'
@@ -2551,7 +2561,7 @@
 						writePlacement(spot)
 						savePrefs(
 							spot.mode === 'free'
-								? { mode: 'free', x: Math.round(spot.x), y: Math.round(spot.y) }
+								? { mode: 'free', x: Math.round(spot.x), bottom: Math.round(spot.bottom) }
 								: { mode: 'docked', side: spot.side, bottom: Math.round(spot.bottom) },
 						)
 						return
@@ -2817,8 +2827,14 @@
 					touchAction: 'none',
 				}
 				if (placement.mode === 'free') {
-					root.left = placement.x + 'px'
-					root.top = placement.y + 'px'
+					// The drawing is centred in a fixed-width frame, so the frame's left
+					// is offset by the overhang. Anchoring on `bottom` is what keeps her
+					// still when the bubble above her grows.
+					// `placement.x` is the drawing's left edge; the frame is wider, so
+					// its own left sits `inset` to the left of that.
+					var freeInset = (FRAME_WIDTH - size.width) / 2
+					root.left = placement.x - freeInset + 'px'
+					root.bottom = placement.bottom + 'px'
 				} else {
 					// Max is wider than the frame, so the character overhangs it on
 					// both sides. The frame's margin alone would leave her 20px closer
