@@ -147,6 +147,15 @@ step('Workspace dependencies', () => {
 	if (result.status !== 0) fail('pnpm install failed; fix the workspace before syncing a profile')
 })
 
+step('Client bundles', () => {
+	if (dryRun) {
+		console.log('  would run: node scripts/build-plugins.mjs')
+		return
+	}
+	const result = run(process.execPath, ['scripts/build-plugins.mjs'])
+	if (result.status !== 0) fail('a client bundle failed to build')
+})
+
 step(`Profile "${profile}"`, () => {
 	const args = ['scripts/sync-profile.mjs', '--profile', profile]
 	if (dryRun) args.push('--dry-run')
