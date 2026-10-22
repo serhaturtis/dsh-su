@@ -358,6 +358,15 @@ Two rules keep the editor from polluting the data:
 - **Editor state is a sidecar** (`rig.state.json`): camera, selection, undo. It is never part of the rig file, so a published rig carries no editor residue.
 - **Hot reload.** The host watches the rig directory and recompiles the look on change. Editing a pivot and seeing the character update within a second is the difference between authoring and archaeology.
 
+### Pivot verifiability
+
+A pivot is not "correct" in isolation — it is correct when the child's joint pivot and the parent's joint point agree. That is arithmetic, so it is a test, not an opinion.
+
+- **Method A — markers:** the generator draws a reserved-colour cross at each joint centre; the importer detects it, extracts the pivot, deletes the marker, and checks consistency (the thigh's hip pivot must coincide with the hip bone's point).
+- **Method C — manual:** pivots placed in the editor with limit-angle ghosting; verified only by coverage sampling.
+
+The pivot spike (M3.5) tests both against real art and writes the verdict to [`experiments/pivot-spike/report.md`](../experiments/pivot-spike/report.md). Whichever survives becomes the documented default; the other is rejected by name, with measurements.
+
 ### Part generation rules (for imagegen prompts)
 
 - Span in **joint terms**: "from the hip socket, down past the knee joint" — never "the visible part below the hem".
@@ -399,6 +408,7 @@ The editor moves earlier, because authoring is the risk, not the engine:
 | **M1** | Canvas renderer + **editor** (pivots, limits, scrub, coverage preview) + hot reload | a rig of coloured shapes animates; pivots are editable by drag, not by JSON; a file edit recompiles within a second |
 | **M2** | Controller, animation layers, procedural layers (blink, gaze, breathing), preset/body-variant/view switching | idle→wave→idle cross-fades; a walk plays on the legs while an arm waves; switching preset swaps attachments live |
 | **M3** | Two-bone IK, foot planting; coverage sampling in CI | hips move, feet do not slide; joint coverage verified in CI |
+| **M3.5** | **Pivot spike** — minimal two-leg rig, real art, marker vs manual pivot placement | gates met and recorded in `experiments/pivot-spike/report.md`: 0 coverage holes at clip extremes, marker consistency for every joint, ≤2 min per joint, clean human review of 60 frames |
 | **M4** | Spring bones; attachment clips | a tail and hair follow the root and settle; a skirt sway clip plays |
 | **M5** | First character: humanoid, front + side views, idle/walk/wave/squat | lint passes; no joint gaps at limit angles |
 | **M6** | Second preset, view/mirror data with `asymmetric` | look swap without clip changes; a side view mirrored without lint warnings |
