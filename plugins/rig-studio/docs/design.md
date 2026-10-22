@@ -17,7 +17,7 @@ look      = the resolved result at runtime
 
 - **rig** — skeleton, body parts, body variants, limits, joints. Anatomy only.
 - **attachment** — anything layered on: clothing, hair, tail, wings, accessory, held prop.
-- **variant** — alternate art for an attachment (colourway, length) or for the body (fur, scales).
+- **variant** — alternate art for an attachment (colourway, length) or for the body (fur, scales). A variant may be a different image, or a **tint**/**palette** applied to one drawing, so five boot colours cost one drawing.
 - **preset** — a named selection of a body variant plus attachments: `default`, `winter`, `formal`.
 - **view** — a named art configuration (optional; a rig may have one).
 - **look** — what a preset and a view resolve to at runtime, after variants apply.
@@ -99,7 +99,7 @@ The merge does not happen at load, and it does not mutate authoring data: it is 
 ```jsonc
 {
   "id": "skirt_pleated",
-  "kind": "garment",              // garment | hair | tail | wing | accessory | prop | mod
+  "kind": "garment",              // garment | hair | tail | wing | accessory | prop
   "group": "bottom",              // one attachment per group in a preset
   "layer": "over", "order": 30,   // back | body | over | front
   "attach": "hip",                // parent bone: on the rig, or on another attachment
@@ -110,7 +110,10 @@ The merge does not happen at load, and it does not mutate authoring data: it is 
   ],
   "springs": [ { "bone": "skirt_2", "stiffness": 0.35, "damping": 0.5 } ],
   "slots": [ { "name": "skirt", "bone": "skirt_1", "layer": "over", "order": 30 } ],
-  "variants": { "default": { "skirt": { "image": "parts/skirt.png", "pivot": [0, -10], "bounds": [-90, 0, 180, 120] } } },
+  "variants": {
+    "default": { "skirt": { "image": "parts/skirt.png", "pivot": [0, -10], "bounds": [-90, 0, 180, 120] } },
+    "red":     { "skirt": { "tint": [340, 0.35, 1.1] } }
+  },
   "occludes": [ "hip", "thigh_l", "thigh_r" ],
   "clips": { "sway": { "duration": 1200, "loop": true, "tracks": [] } }
 }
@@ -127,6 +130,8 @@ Rules, enforced by the validator:
 7. Attachment `clips` animate attachment bones only, and are compiled into the same clip library.
 
 **Overdraw is accepted.** The body is always drawn in full beneath its attachments. Correctness first; culling is an optimisation.
+
+**Resolution is data, not hope.** An attachment may ship `image` plus `image@2x`; the runtime picks by device pixel ratio. Stated once, in the format, so every author answers the retina question the same way.
 
 ---
 
@@ -171,12 +176,12 @@ The engine never hears "north". It exposes `compile({ view, mirror })` and `play
 // character.json
 {
   "id": "girl-01",
-  "rig": "rigs/girl-01.json",
+  "rig": "girl-01@^1",
   "preset": "default",
   "presets": {
     "default": { "bodyVariant": "default", "attachments": [
-      { "attachment": "top_harness" }, { "attachment": "skirt_pleated" },
-      { "attachment": "hair_bob", "variant": "black" }
+      { "attachment": "top_harness@^1" }, { "attachment": "skirt_pleated@^2" },
+      { "attachment": "hair_bob@^1", "variant": "black" }
     ]},
     "tabby":   { "bodyVariant": "tabby",  "attachments": [ { "attachment": "tail_fluffy" } ] }
   }
@@ -186,16 +191,60 @@ The engine never hears "north". It exposes `compile({ view, mirror })` and `play
 - A preset selects the **body variant and the attachments** together. The naming was chosen precisely because a cat's fur and a cat's tail are the same mechanism as a skirt — so a preset must be able to say *tabby cat with a fluffy tail*.
 - Selecting a preset produces a **look**: the compiled skeleton plus resolved slots.
 - v1 presets are explicit lists. Mixing rules ("trousers replace skirt") are a later feature and are why `group` exists now.
+- **References are versioned.** `girl-01@^1`, `skirt_pleated@^2`. Compile validates bone presence and version ranges. Without ranges, updating an attachment silently breaks every character that uses it.
 
 ---
 
 ## 7. Runtime
 
 ```
-clip sampling → cross-fade → clamp limits → IK → springs → world transforms → render
+clip sampling → layer blend → cross-fade → clamp limits → IK → springs → world transforms → render
 ```
 
 Every stage is a pure function over plain objects, so the runtime is testable without a browser.
+
+### Engine boundary and actors
+
+The core — `compile`, `pose`, `clip`, `blend`, `ik`, `spring` — has **zero DSH imports**. It is a plain module any host can consume: web, Electron, tests, a future CLI renderer. Only `client.js` and `index.ts` know DSH exists.
+
+Instances are **actors**, not engine state:
+
+```
+createActor(look) → { pose, clock, layers }    // N actors, one engine
+```
+
+An actor owns its pose and its clock. The clock is injected (a `now()` function), which is what makes playback deterministic in tests. The engine owns animation; **behaviour is application policy** — exactly like heading. The state machine in the plugin is a reference implementation, not part of the core.
+
+### Deterministic draw order
+
+Slots sort at compile time by **(layer band, z, slot name)** — never by insertion order, which changes with preset load order and turns a cosmetic difference into a rendering bug. Same look, same order, everywhere.
+
+### Animation layers
+
+A single active clip is not how characters move: a walk must play on the legs while an arm waves. Playback is therefore a **stack of layers**:
+
+```
+layers = [ { clip, mask, weight } ]        // mask names bones or roles; top of stack wins
+```
+
+Each layer samples and blends independently; cross-fade applies per layer. The controller in the plugin composes layers; the core only knows how to blend them.
+
+### Procedural layers
+
+Authored clips are not the only source of life. Engine-provided motion over authored bones, opt-in per rig:
+
+| Layer | What it does | Art cost |
+| --- | --- | --- |
+| `breathing` | a sine on the chest/spine bone, amplitude and rate per rig | none |
+| `blink` | swaps the eye slot to its closed variant on a random timer | one closed-eye drawing |
+| `gaze` | rotates the head toward a target point, clamped by limits | none |
+| `sway` | idle spring motion for hair and tails | none — the springs exist |
+
+A character that never blinks looks dead; these layers are the cheapest quality this engine can offer.
+
+### Events and markers
+
+A clip carries both: **markers** (`{ t, name }`, delivered every loop — a footfall point) and **events** (`{ t, name }`, delivered once per pass — a landing thud). The distinction stops the app from re-triggering a one-shot sound every loop.
 
 | Module | Responsibility |
 | --- | --- |
@@ -223,6 +272,10 @@ Verlet chains over a **fixed timestep** (60 Hz, sub-stepped as needed). Springs 
 ### Rendering
 
 `ctx.setTransform` per slot with the solved world matrix; one draw per slot; sorted once per compile. `ImageBitmap` for parts. Redraw when the state machine, clips or springs change.
+
+### Playback policy hooks
+
+The engine exposes two flags the app sets, and never decides for it: `reducedMotion` (freeze springs and looping clips, keep one-shot gestures) and `visible` (halt playback when hidden, resume in place). Accessibility and battery are application policy; the hooks are engine-provided.
 
 ### Controller
 
@@ -278,6 +331,7 @@ What must be verified is that a joint cannot open, whatever shape the parts have
 | `group-conflict` | A preset selects two attachments in one group |
 | `orphan-attachment` | A preset selects an attachment whose parent attachment is absent |
 | `mirror-unsafe` | A mirrored look contains an attachment declared `asymmetric` |
+| `loop-seam` | Sampling `t=0` and `t=duration` of a looping clip shows a pose jump — it will pop at the wrap |
 | `canvas-overflow` | Attachment bounds exceed the canvas at rest |
 
 A rig that passes lint can still be ugly. It cannot fall apart.
@@ -298,6 +352,11 @@ The engine is the cheap half. A character is:
 ### Editor, not just a viewer
 
 Bone handles, pivots, limit arcs, joint coverage preview, slot order, clip scrubber — **and editable pivots, limits and keys**. Hand-editing JSON pivots is the single most painful authoring step and the one that breaks joints; the editor exists to make it a drag instead of a text edit. Without it, authoring is blind; this project lives or dies on authoring ergonomics.
+
+Two rules keep the editor from polluting the data:
+
+- **Editor state is a sidecar** (`rig.state.json`): camera, selection, undo. It is never part of the rig file, so a published rig carries no editor residue.
+- **Hot reload.** The host watches the rig directory and recompiles the look on change. Editing a pivot and seeing the character update within a second is the difference between authoring and archaeology.
 
 ### Part generation rules (for imagegen prompts)
 
@@ -337,8 +396,8 @@ The editor moves earlier, because authoring is the risk, not the engine:
 | # | Deliverable | Acceptance |
 | --- | --- | --- |
 | **M0** | `format.js`, `compile.js`, `pose.js`, `clip.js`, `ik.js`, tests | a hand-written rig compiles and solves to expected world transforms; every lint code has a test |
-| **M1** | Canvas renderer + **editor** (pivots, limits, scrub, coverage preview) | a rig of coloured shapes animates; pivots are editable by drag, not by JSON |
-| **M2** | Controller, blending, preset/body-variant/view switching | idle→wave→idle cross-fades; switching preset swaps attachments live |
+| **M1** | Canvas renderer + **editor** (pivots, limits, scrub, coverage preview) + hot reload | a rig of coloured shapes animates; pivots are editable by drag, not by JSON; a file edit recompiles within a second |
+| **M2** | Controller, animation layers, procedural layers (blink, gaze, breathing), preset/body-variant/view switching | idle→wave→idle cross-fades; a walk plays on the legs while an arm waves; switching preset swaps attachments live |
 | **M3** | Two-bone IK, foot planting; coverage sampling in CI | hips move, feet do not slide; joint coverage verified in CI |
 | **M4** | Spring bones; attachment clips | a tail and hair follow the root and settle; a skirt sway clip plays |
 | **M5** | First character: humanoid, front + side views, idle/walk/wave/squat | lint passes; no joint gaps at limit angles |
@@ -375,3 +434,7 @@ The editor moves earlier, because authoring is the risk, not the engine:
 | layer | draw band | group |
 | occludes | anatomy an attachment must hide | "contains" |
 | role | validation tag, retargeting hint | a track target |
+| actor | a runtime instance of a look, with its own pose and clock | engine state |
+| procedural layer | engine-generated motion (blink, gaze, breathing, sway) | an authored clip |
+| marker | a named loop point in a clip, delivered every loop | an event — that fires once |
+| tint | a colour transform applied to one drawing | a new drawing |
