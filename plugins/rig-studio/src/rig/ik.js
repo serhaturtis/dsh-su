@@ -89,9 +89,16 @@ export function solveIKChain(look, pose, chain) {
 		bend: chain.bend ?? 1,
 	})
 
+	// Limits win over the target. A foot that cannot reach is planted short;
+	// a hyperextended knee is a broken rig.
+	const clampRotation = (bone, value) => {
+		const limit = bone.limit
+		if (limit === undefined || limit === null || !Array.isArray(limit.rotation)) return value
+		return Math.min(Math.max(value, limit.rotation[0]), limit.rotation[1])
+	}
 	const next = { ...pose }
-	next[upper.id] = { ...(pose[upper.id] ?? upper.rest), rotation: angles.upper }
-	next[lower.id] = { ...(pose[lower.id] ?? lower.rest), rotation: angles.lower }
+	next[upper.id] = { ...(pose[upper.id] ?? upper.rest), rotation: clampRotation(upper, angles.upper) }
+	next[lower.id] = { ...(pose[lower.id] ?? lower.rest), rotation: clampRotation(lower, angles.lower) }
 	return next
 }
 

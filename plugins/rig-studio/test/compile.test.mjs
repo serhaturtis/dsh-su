@@ -85,4 +85,45 @@ test('a view maps clip names without duplicating the library', () => {
 	assert.equal(resolveClipName(sideLook, character, 'walk'), 'walk', 'unmapped names pass through')
 })
 
+console.log('\nhand-authored order')
+
+test('a rig that lists a child before its parent still compiles', () => {
+	const shuffled = structuredClone(rig)
+	const thigh = shuffled.skeleton.bones.findIndex((bone) => bone.name === 'thigh_l')
+	const shin = shuffled.skeleton.bones.findIndex((bone) => bone.name === 'shin_l')
+	;[shuffled.skeleton.bones[thigh], shuffled.skeleton.bones[shin]] = [shuffled.skeleton.bones[shin], shuffled.skeleton.bones[thigh]]
+	const look = compileLook({ rig: shuffled, attachments: [], preset: bodyOnlyPreset() })
+	const thighBone = look.byKey.get('thigh_l')
+	const shinBone = look.byKey.get('shin_l')
+	assert.ok(thighBone.id < shinBone.id, 'the parent is solved first')
+	assert.equal(shinBone.parentId, thighBone.id)
+})
+
+test('attachment bones may also be listed child first', () => {
+	const nested = hair()
+	nested.bones = [
+		{ name: 'swing', parent: 'swing_root', x: 0, y: 20 },
+		{ name: 'swing_root', parent: null, x: 0, y: 0 },
+	]
+	const look = compileLook({ rig, attachments: [nested], preset: { attachments: ['hair'] } })
+	const swing = look.byKey.get('attach:hair:swing')
+	const swingRoot = look.byKey.get('attach:hair:swing_root')
+	assert.equal(swing.parentId, swingRoot.id)
+	assert.ok(swingRoot.id < swing.id)
+})
+
+test('an attachment with no bones of its own hangs from its parent attachment', () => {
+	const bow = {
+		id: 'bow',
+		kind: 'accessory',
+		attach: 'hair',
+		group: 'headwear',
+		slots: [{ name: 'bow', layer: 'front', order: 20 }],
+		variants: { default: { bow: { image: 'parts/bow.png', bounds: [-10, -10, 20, 20] } } },
+	}
+	const look = compileLook({ rig, attachments: [hair(), bow], preset: { attachments: ['hair', 'bow'] } })
+	const slot = look.slots.find((entry) => entry.name === 'bow:bow')
+	assert.equal(look.bones[slot.boneId].key, 'attach:hair:swing', 'the bow rides the hair bone')
+})
+
 report()

@@ -125,4 +125,13 @@ test('artwork outside the canvas is reported', () => {
 	assert.ok(codes(run(rig)).includes(LINT.CANVAS_OVERFLOW))
 })
 
+test('the overlap requirement can be tuned to the rig scale', () => {
+	// 6 px of overlap fails the 12 px default and passes a rig that asks for 4.
+	const small = humanoidRig()
+	small.bodyVariants.default.thigh_l.bounds = [-30, -15, 60, 112]
+	assert.ok(codes(run(small)).includes(LINT.JOINT_UNCOVERED))
+	small.minOverlap = 4
+	assert.ok(!codes(run(small)).includes(LINT.JOINT_UNCOVERED))
+})
+
 report()

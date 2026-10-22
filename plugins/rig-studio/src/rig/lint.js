@@ -77,7 +77,9 @@ export function lintLook({ rig, attachments = [], preset = { attachments: [] }, 
 	}
 
 	const issues = []
-	const minOverlap = LIMITS.minOverlap
+	// A rig 100 px tall and a rig 800 px tall cannot share one overlap figure:
+	// the author may declare `minOverlap` per rig, and the default is a guide.
+	const minOverlap = Number.isFinite(rig.minOverlap) ? rig.minOverlap : LIMITS.minOverlap
 
 	// --- joints: is the pivot covered by the parent, the child, or a cap?
 	for (const joint of rig.joints ?? []) {

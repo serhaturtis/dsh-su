@@ -25,6 +25,53 @@ function asMap(attachments) {
 	return map
 }
 
+/**
+ * Bones in parent-before-child order.
+ *
+ * The solver assumes a parent is solved before its child, and a hand-authored
+ * rig may list either order. Sorting here means authoring order is a
+ * convenience, not a correctness requirement — and it keeps the declaration
+ * order among siblings, so slot order stays predictable.
+ */
+function orderBones(bones) {
+	const byName = new Map(bones.map((bone) => [bone.name, bone]))
+	const out = []
+	const done = new Set()
+	const visiting = new Set()
+	const visit = (bone) => {
+		if (bone === undefined || done.has(bone.name) || visiting.has(bone.name)) return
+		visiting.add(bone.name)
+		const parent = bone.parent === null || bone.parent === undefined ? undefined : byName.get(bone.parent)
+		visit(parent)
+		visiting.delete(bone.name)
+		if (!done.has(bone.name)) {
+			done.add(bone.name)
+			out.push(bone)
+		}
+	}
+	for (const bone of bones) visit(bone)
+	return out
+}
+
+/**
+ * The bone an attachment hangs from, as a compiled key.
+ *
+ * An attachment may attach to a rig bone, or to another attachment. In the
+ * second case it hangs from that attachment's root bone, and an attachment with
+ * no bones of its own hangs directly from whatever its parent hangs from. This
+ * is what lets a bow sit on a hat without either knowing about the other.
+ */
+function frameKeyFor(attachment, byKey, byId) {
+	const target = attachment.attach
+	if (typeof target !== 'string') return null
+	if (byKey.has(target)) return target
+	const parent = byId.get(target)
+	if (parent === undefined) return null
+	const roots = attachmentRoots(parent)
+	if (roots.length > 0) return `attach:${parent.id}:${roots[0].name}`
+	return frameKeyFor(parent, byKey, byId)
+}
+
 /** The attachment's root bone: the one whose parent is not another bone of its own. */
 function attachmentRoots(attachment) {
 	const local = new Set((attachment.bones ?? []).map((bone) => bone.name))
@@ -127,7 +174,7 @@ export function compileLook({ rig, attachments = [], preset = { attachments: [] 
 	// --- rig bones, in declaration order
 	const joints = new Map()
 	for (const joint of rig.joints ?? []) joints.set(joint.bone, joint)
-	for (const bone of rig.skeleton.bones) {
+	for (const bone of orderBones(rig.skeleton.bones)) {
 		addBone({
 			key: bone.name,
 			name: bone.name,
@@ -150,26 +197,17 @@ export function compileLook({ rig, attachments = [], preset = { attachments: [] 
 
 	for (const { attachment } of grid) {
 		const local = new Map()
-		for (const bone of attachment.bones ?? []) {
+		for (const bone of orderBones(attachment.bones ?? [])) {
 			const parent = bone.parent
 			let parentId
 			if (parent === null || parent === undefined) {
 				// The attachment's root bone hangs off whatever it attaches to.
-				const target = attachment.attach
-				if (byKey.has(target)) parentId = byKey.get(target).id
-				else if (byId.has(target)) {
-					const parentAttachment = byId.get(target)
-					const root = attachmentRoots(parentAttachment)[0]
-					const key = root === undefined ? undefined : `attach:${parentAttachment.id}:${root.name}`
-					if (key === undefined || !byKey.has(key)) {
-						codes.push(`${ERRORS.ATTACHMENT_ATTACH}:${attachment.id}`)
-						continue
-					}
-					parentId = byKey.get(key).id
-				} else {
+				const key = frameKeyFor(attachment, byKey, byId)
+				if (key === null || !byKey.has(key)) {
 					codes.push(`${ERRORS.ATTACHMENT_ATTACH}:${attachment.id}`)
 					continue
 				}
+				parentId = byKey.get(key).id
 			} else {
 				const parentKey = `attach:${attachment.id}:${parent}`
 				if (!byKey.has(parentKey) && !local.has(parent)) {
@@ -224,7 +262,7 @@ export function compileLook({ rig, attachments = [], preset = { attachments: [] 
 		for (const slot of attachment.slots ?? []) {
 			const piece = resolved.art[slot.name]
 			if (piece === undefined) throw new CompileError([`${ERRORS.ART}:${attachment.id}:${slot.name}`])
-			const boneKey = slot.bone === undefined ? attachment.attach : `attach:${attachment.id}:${slot.bone}`
+			const boneKey = slot.bone === undefined ? frameKeyFor(attachment, byKey, byId) : `attach:${attachment.id}:${slot.bone}`
 			const bone = byKey.get(boneKey)
 			if (bone === undefined) throw new CompileError([`${ERRORS.SLOT_BONE}:${attachment.id}:${slot.name}`])
 			slots.push({

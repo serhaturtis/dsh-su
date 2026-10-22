@@ -58,7 +58,7 @@ test('IK keeps the foot on its target when the hips drop', () => {
 	// Drop the hips 30 px, then ask the chain to reach the foot's OLD position —
 	// the whole point of foot planting.
 	const dropped = applySample(rest, { [bone('hip').id]: { y: rest[bone('hip').id].y + 30 } })
-	const chain = { upperId: bone('thigh_l').id, lowerId: bone('shin_l').id, targetId: bone('foot_l').id, targetWorld: target, bend: 1 }
+	const chain = { upperId: bone('thigh_l').id, lowerId: bone('shin_l').id, targetId: bone('foot_l').id, targetWorld: target, bend: -1 }
 	const ik = solveIKChain(look, dropped, chain)
 	const end = chainEndWorld(look, ik, chain)
 	assert.ok(distance(end, target) < 2, `foot ended ${distance(end, target).toFixed(2)}px from its target`)
@@ -69,11 +69,15 @@ test('the knee bends the way it was told', () => {
 	const target = boneWorldPosition(solvePose(look, rest), bone('foot_l').id)
 	const dropped = applySample(rest, { [bone('hip').id]: { y: rest[bone('hip').id].y + 30 } })
 	const chain = { upperId: bone('thigh_l').id, lowerId: bone('shin_l').id, targetId: bone('foot_l').id, targetWorld: target }
-	const forward = solveIKChain(look, dropped, { ...chain, bend: 1 })
-	const backward = solveIKChain(look, dropped, { ...chain, bend: -1 })
+	// One direction is anatomically valid here (shin rotates positive); the other
+	// hyperextends and is clamped by the limit. Either way the knee moves.
+	const forward = solveIKChain(look, dropped, { ...chain, bend: -1 })
+	const backward = solveIKChain(look, dropped, { ...chain, bend: 1 })
 	const a = boneWorldPosition(solvePose(look, forward), bone('shin_l').id)
 	const b = boneWorldPosition(solvePose(look, backward), bone('shin_l').id)
 	assert.ok(distance(a, b) > 5, 'the two bend directions put the knee in different places')
+	assert.ok(forward[bone('shin_l').id].rotation > 0, 'the valid direction bends the knee forward')
+	assert.ok(backward[bone('shin_l').id].rotation >= -5, 'the invalid direction is clamped to the limit')
 })
 
 test('an impossible target leaves the leg straight, not broken', () => {
@@ -84,6 +88,18 @@ test('an impossible target leaves the leg straight, not broken', () => {
 	assert.ok(Number.isFinite(knee[0]) && Number.isFinite(knee[1]))
 	// Straight: the knee is exactly one thigh-length from the hip.
 	assert.ok(Math.abs(distance(hip, knee) - 90) < 1e-6, 'the thigh kept its length')
+})
+
+test('IK never hyperextends a joint, even when the target asks it to', () => {
+	// A thigh limited to ±45° cannot swing to a target 100 px to the side.
+	const limited = structuredClone(rig)
+	limited.skeleton.bones.find((bone) => bone.name === 'thigh_l').limit = { rotation: [-45, 45] }
+	const tightLook = compileLook({ rig: limited, attachments: [], preset: bodyOnlyPreset() })
+	const tight = (name) => tightLook.byKey.get(name)
+	const target = boneWorldPosition(solvePose(tightLook, createPose(tightLook)), tight('foot_l').id)
+	const chain = { upperId: tight('thigh_l').id, lowerId: tight('shin_l').id, targetId: tight('foot_l').id, targetWorld: [target[0] + 200, target[1]], bend: 1 }
+	const posed = solveIKChain(tightLook, createPose(tightLook), chain)
+	assert.ok(Math.abs(posed[tight('thigh_l').id].rotation) <= 45 + 1e-9, `rotation was ${posed[tight('thigh_l').id].rotation}`)
 })
 
 report()
