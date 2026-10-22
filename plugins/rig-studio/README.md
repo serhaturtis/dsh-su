@@ -8,7 +8,7 @@ Design: [`docs/design.md`](docs/design.md).
 
 The whole design turns on two decisions that are easy to miss:
 
-- **Attachments are overlays on one merged skeleton.** Clothing is never baked into the body, and attachment bones are merged into the rig at load, so FK, IK, springs and draw order are uniform. A new piece of clothing costs one drawing, not a whole character.
+- **Attachments are overlays on one compiled skeleton.** Clothing is never baked into the body; attachment bones are merged at compile time, so FK, IK, springs and draw order are uniform, and a new piece of clothing costs one drawing, not a whole character. Facing is not the engine's business: an app maps its headings to views, and mirroring is one boolean.
 - **Joints are covered by a disc centred on the pivot.** A circle is rotation-invariant, so a joint built this way cannot open a gap at any angle. Limits then become a style choice rather than a safety net.
 
 Not in v1: mesh deformation, cloth collision, 8-direction art.
@@ -17,8 +17,8 @@ Not in v1: mesh deformation, cloth collision, 8-direction art.
 
 | # | Deliverable |
 | --- | --- |
-| M0 | format, solver, clip sampling, IK, lint — every lint code has a test |
-| M1 | canvas renderer and debug overlay (bones, pivots, discs) |
+| M0 | format, compile, solver, clip sampling, IK, lint — every lint code has a test |
+| M1 | canvas renderer and editor (bones, pivots, discs, scrub) |
 | M2 | controller, blending, preset switching |
 | M3 | two-bone IK and foot planting |
 | M4 | spring bones for hair, tails, cloth |
