@@ -1139,6 +1139,29 @@ test('she dozes off after ten quiet minutes, but not before', () => {
 	assert.equal(exported.__character.resolveFace({ peak: false }, { ok: false }, asleep, now), 'worried')
 })
 
+test('a pack image does not inherit the built-in bob or hop', () => {
+	// The hop is translateY(-7px) on happy: applied to pack art it lifted her
+	// boots off the ground and read as hovering.
+	const packs = exported.__packs
+	packs.setActivePack({ manifest: {} })
+	packs.setPacksForTest({ ready: true, active: 'sample', packs: [{ id: 'sample', name: 'Sample', manifest: {} }] })
+	try {
+		const tree = render(Date.now())
+		const classes = []
+		;(function walk(node) {
+			if (node === null || typeof node !== 'object') return
+			if (Array.isArray(node)) return node.forEach(walk)
+			if (node.type === 'img') classes.push(node.props.className)
+			walk(node.props?.children)
+		})(tree)
+		assert.equal(classes.length, 1)
+		assert.ok(!classes[0].includes('dshsw-still'), 'pack art must not get the built-in animation')
+	} finally {
+		packs.setActivePack(null)
+		packs.setPacksForTest({ ready: true, active: null, packs: [] })
+	}
+})
+
 test('the built-in drawing is the only thing the CSS animation targets', () => {
 	// A stylesheet rule on the shared class fought a pack's sprite animation.
 	const packs = exported.__packs

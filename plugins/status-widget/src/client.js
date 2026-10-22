@@ -2769,7 +2769,10 @@
 							// a stand-in character would be a different animal.
 							React.createElement('div', { className: 'dshsw-body', 'data-state': face, style: layout.character })
 						: React.createElement('img', {
-								className: 'dshsw-body dshsw-still',
+								// Only the built-in art gets the CSS bob/hop; a pack
+								// animates itself, and the built-in hop on top of pack art
+								// lifted her boots off the ground.
+								className: packList.active === null ? 'dshsw-body dshsw-still' : 'dshsw-body',
 								'data-state': face,
 								src: (packList.active === null ? MASCOT_PATH : PACK_BASE + '/character.png') + '?state=' + face,
 								alt: '',
